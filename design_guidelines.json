@@ -1,0 +1,125 @@
+{
+  "theme": "light",
+  "archetype": "4 (Swiss & High-Contrast)",
+  "global_design_rules": {
+    "spacing_philosophy": "Generous Spacing (p-6 to p-8 for containers)",
+    "border_radius": "Subtle roundness (rounded-xl for cards, rounded-lg for buttons)",
+    "shadows": "Diffuse ambient shadows for cards (shadow-sm), flat solid for tables",
+    "backgrounds": "bg-slate-50 for main content area to contrast with bright white cards"
+  },
+  "colors": {
+    "primary": "indigo-600",
+    "primary_hover": "indigo-700",
+    "background": "slate-50",
+    "surface": "white",
+    "text_main": "slate-900",
+    "text_muted": "slate-500",
+    "border": "slate-200",
+    "tpo_sidebar_bg": "slate-950",
+    "tpo_sidebar_text": "slate-400",
+    "tpo_sidebar_hover_bg": "slate-900",
+    "tpo_sidebar_active_bg": "indigo-600",
+    "tpo_sidebar_active_text": "white",
+    "student_sidebar_bg": "white",
+    "student_sidebar_text": "slate-600",
+    "student_sidebar_hover_bg": "slate-50",
+    "student_sidebar_active_bg": "indigo-50",
+    "student_sidebar_active_text": "indigo-700"
+  },
+  "typography": {
+    "heading_font": "Outfit",
+    "body_font": "IBM Plex Sans",
+    "scale": {
+      "h1": "text-4xl tracking-tight font-semibold text-slate-900",
+      "h2": "text-2xl tracking-tight font-semibold text-slate-900",
+      "h3": "text-xl font-medium text-slate-900",
+      "h4": "text-lg font-medium text-slate-900",
+      "body": "text-base leading-relaxed text-slate-600",
+      "small": "text-sm text-slate-500",
+      "overline": "text-xs uppercase tracking-wider font-semibold text-slate-400"
+    }
+  },
+  "layout": {
+    "grid_system": "The 'Control Room' Grid",
+    "dashboard_top_cards": "grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6",
+    "charts_section": "grid-cols-1 lg:grid-cols-2 gap-6",
+    "student_dashboard_top_cards": "grid-cols-1 md:grid-cols-3 gap-6",
+    "split_layout": "grid-cols-1 lg:grid-cols-12 gap-8 (Left info: col-span-4, Right timeline/resources: col-span-8)",
+    "container_padding": "p-6 md:p-8"
+  },
+  "components": {
+    "sidebar": {
+      "type": "fixed_left",
+      "width": "w-64",
+      "icons": "lucide-react, size-5, minimal"
+    },
+    "cards": {
+      "style": "Neumorphism Tactile Variant - bg-white, border border-slate-200, shadow-sm, rounded-xl p-6",
+      "hover": "hover:shadow-md transition-all duration-200"
+    },
+    "tables": {
+      "style": "Shadcn Table, border-collapse, text-sm, bg-white rounded-xl overflow-hidden border border-slate-200",
+      "headers": "bg-slate-50 text-slate-500 uppercase text-xs tracking-wider py-4 px-6 text-left",
+      "rows": "border-t border-slate-200 py-4 px-6 hover:bg-slate-50 cursor-pointer"
+    },
+    "charts": {
+      "library": "recharts (via Shadcn Chart component)",
+      "bar_chart": "Skill Gap Distribution. Use indigo-600 for bars, rounded top corners (radius=[4,4,0,0])",
+      "pie_chart": "Ready vs Not Ready. Use indigo-600 and slate-200. Donut style (innerRadius=60)"
+    },
+    "buttons": {
+      "primary": "bg-indigo-600 text-white rounded-lg px-4 py-2 text-sm font-medium hover:bg-indigo-700 transition-colors shadow-sm",
+      "secondary": "bg-white text-slate-700 border border-slate-200 rounded-lg px-4 py-2 text-sm font-medium hover:bg-slate-50 transition-colors"
+    },
+    "drawer": {
+      "component": "Shadcn Sheet (right side)",
+      "style": "w-[400px] sm:w-[540px] p-0 bg-white shadow-2xl border-l border-slate-200"
+    },
+    "progress_checklist": {
+      "style": "Shadcn Checkbox with label. Strike-through text and text-slate-400 on checked. Custom accent color indigo-600"
+    },
+    "filters": {
+      "style": "Shadcn Select or Command component for Student Insights filtering (Branch, Readiness %)"
+    }
+  },
+  "media": {
+    "image_urls": [
+      {
+        "category": "student_avatar",
+        "url": "https://images.unsplash.com/photo-1770028919882-017b31ad6d42?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDQ2MzR8MHwxfHNlYXJjaHw0fHxwcm9mZXNzaW9uYWwlMjB1bml2ZXJzaXR5JTIwc3R1ZGVudCUyMHBvcnRyYWl0fGVufDB8fHx8MTc3NTA1NzAzOXww&ixlib=rb-4.1.0&q=85",
+        "description": "Avatar for current logged-in student profile"
+      },
+      {
+        "category": "student_avatar_list",
+        "url": "https://images.pexels.com/photos/5940864/pexels-photo-5940864.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+        "description": "Avatar for students in the TPO insights table"
+      },
+      {
+        "category": "company_logo_1",
+        "url": "https://images.unsplash.com/photo-1770170389700-eb0f9b910ed8?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1NTJ8MHwxfHNlYXJjaHwzfHxtb2Rlcm4lMjBhYnN0cmFjdCUyMHRlY2glMjBjb21wYW55JTIwbG9nb3xlbnwwfHx8fDE3NzUwNTcwMzl8MA&ixlib=rb-4.1.0&q=85",
+        "description": "Company logo for announcements and grid cards"
+      },
+      {
+        "category": "company_logo_2",
+        "url": "https://images.unsplash.com/photo-1770210217380-d78a69acdc77?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1NTJ8MHwxfHNlYXJjaHwxfHxtb2Rlcm4lMjBhYnN0cmFjdCUyMHRlY2glMjBjb21wYW55JTIwbG9nb3xlbnwwfHx8fDE3NzUwNTcwMzl8MA&ixlib=rb-4.1.0&q=85",
+        "description": "Alternative company logo"
+      }
+    ]
+  },
+  "testing": {
+    "rules": "All interactive and key informational elements MUST include a 'data-testid' attribute (kebab-case, role-based)."
+  },
+  "instructions_to_main_agent": [
+    "Install 'lucide-react' for minimal icons. Use them in both sidebars.",
+    "Install and configure 'recharts' via Shadcn for the TPO Dashboard bar and pie charts.",
+    "Use 'react-router-dom' to create a routing structure differentiating the TPO routes (/tpo/*) and Student routes (/student/*).",
+    "Build standard Dashboard Layouts with a fixed Left Sidebar and a main content area that scrolls independently.",
+    "TPO Sidebar is DARK (bg-slate-950) while Student Sidebar is LIGHT (bg-white) to visually separate the two roles.",
+    "TPO Sidebar Menu: Dashboard, Company Announcements, Student Insights, AI Reports, Shortlisted Candidates, Settings.",
+    "Student Sidebar Menu: Dashboard, Companies, My Roadmaps, Progress, Profile.",
+    "Implement the TPO Company Announcements Table: Clicking a row MUST open a Shadcn Sheet (drawer) containing details, students applied, and their readiness scores.",
+    "Implement the Student 'My Roadmaps' Page using a split layout (col-span-4 for selected company info, col-span-8 for Skill Gap, 14-Day Plan, Resources, Interview Prep sections).",
+    "Ensure the fonts (Outfit for Headings, IBM Plex Sans for body) are imported via Google Fonts in index.css or equivalent.",
+    "Apply 'data-testid' across all significant clickable components (e.g., 'data-testid=\"tpo-add-company-btn\"')."
+  ]
+}

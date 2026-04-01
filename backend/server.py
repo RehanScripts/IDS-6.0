@@ -213,7 +213,8 @@ async def create_company(input: CompanyCreate, request: Request):
     company_doc = input.model_dump()
     company_doc["id"] = secrets.token_urlsafe(8)
     company_doc["created_at"] = datetime.now(timezone.utc).isoformat()
-    await db.companies.insert_one(company_doc)
+    result = await db.companies.insert_one(company_doc)
+    company_doc.pop("_id", None)  # Remove ObjectId before returning
     return company_doc
 
 @api_router.get("/tpo/students")
@@ -301,7 +302,8 @@ async def create_roadmap(input: RoadmapCreate, request: Request):
         ],
         "created_at": datetime.now(timezone.utc).isoformat()
     }
-    await db.roadmaps.insert_one(roadmap_doc)
+    result = await db.roadmaps.insert_one(roadmap_doc)
+    roadmap_doc.pop("_id", None)  # Remove ObjectId before returning
     return roadmap_doc
 
 @api_router.get("/student/roadmaps")
@@ -359,7 +361,7 @@ app.include_router(api_router)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[os.environ.get("FRONTEND_URL", "http://localhost:3000")],
+    allow_origins=["http://localhost:3000", "https://jovita-placement-platform-94c0ae.preview.emergentagent.com"] if os.environ.get("CORS_ORIGINS", "*") == "*" else os.environ.get("CORS_ORIGINS", "*").split(","),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

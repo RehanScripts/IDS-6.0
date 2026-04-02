@@ -25,17 +25,8 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
 
   const checkAuth = async () => {
-    try {
-      const { data } = await axios.get(
-        `${process.env.REACT_APP_BACKEND_URL}/api/auth/me`,
-        { withCredentials: true }
-      );
-      setUser(data);
-    } catch (error) {
-      setUser(false);
-    } finally {
-      setLoading(false);
-    }
+    // Authentication disabled for development - skip API call
+    setLoading(false);
   };
 
   useEffect(() => {
@@ -43,46 +34,49 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   const login = async (email, password) => {
+    // Mock login without API call - determine role from email
     try {
-      const { data } = await axios.post(
-        `${process.env.REACT_APP_BACKEND_URL}/api/auth/login`,
-        { email, password },
-        { withCredentials: true }
-      );
-      setUser(data);
-      return { success: true, data };
+      let role = 'student';
+      if (email.includes('tpo')) {
+        role = 'tpo';
+      }
+      
+      const mockUser = {
+        id: '123',
+        email: email,
+        name: role === 'tpo' ? 'TPO Admin' : 'Student User',
+        role: role,
+        branch: 'CSE'
+      };
+      
+      setUser(mockUser);
+      return { success: true, data: mockUser };
     } catch (error) {
-      const errorMsg = formatApiErrorDetail(error.response?.data?.detail) || error.message;
-      return { success: false, error: errorMsg };
+      return { success: false, error: 'Login failed' };
     }
   };
 
   const register = async (email, password, name, role, branch) => {
+    // Mock register without API call
     try {
-      const { data } = await axios.post(
-        `${process.env.REACT_APP_BACKEND_URL}/api/auth/register`,
-        { email, password, name, role, branch },
-        { withCredentials: true }
-      );
-      setUser(data);
-      return { success: true, data };
+      const mockUser = {
+        id: '123',
+        email: email,
+        name: name,
+        role: role,
+        branch: branch
+      };
+      
+      setUser(mockUser);
+      return { success: true, data: mockUser };
     } catch (error) {
-      const errorMsg = formatApiErrorDetail(error.response?.data?.detail) || error.message;
-      return { success: false, error: errorMsg };
+      return { success: false, error: 'Registration failed' };
     }
   };
 
   const logout = async () => {
-    try {
-      await axios.post(
-        `${process.env.REACT_APP_BACKEND_URL}/api/auth/logout`,
-        {},
-        { withCredentials: true }
-      );
-      setUser(false);
-    } catch (error) {
-      console.error('Logout error:', error);
-    }
+    // Mock logout
+    setUser(false);
   };
 
   return (

@@ -1,7 +1,7 @@
-import React, { useEffect, useState, useCallback } from 'react';
-import axios from 'axios';
-import { TrendingUp, Map, Target, ArrowRight, ChevronLeft, ChevronRight, Sparkles, Calendar, BriefcaseBusiness } from 'lucide-react';
+import React from 'react';
+import { TrendingUp, Map, Target, ArrowRight } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { useRoadmaps } from '../../contexts/RoadmapContext';
 
 const INDUSTRY_IMAGES = {
   Automotive: '/images/automotive.png',
@@ -28,53 +28,14 @@ const INDUSTRY_TAGS = {
 };
 
 export default function StudentDashboard() {
-  const [stats, setStats] = useState(null);
-  const [companies, setCompanies] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [currentSlide, setCurrentSlide] = useState(0);
+  const { dashboardStats, companies, roadmaps } = useRoadmaps();
   const navigate = useNavigate();
 
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const [statsRes, companiesRes] = await Promise.all([
-          axios.get(`${process.env.REACT_APP_BACKEND_URL}/api/student/dashboard/stats`, { withCredentials: true }),
-          axios.get(`${process.env.REACT_APP_BACKEND_URL}/api/student/companies`, { withCredentials: true }),
-        ]);
-        setStats(statsRes.data);
-        setCompanies(companiesRes.data);
-      } catch (error) {
-        console.error('Failed to fetch dashboard data:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchData();
-  }, []);
+  const openAssessment = (companyId) => {
+    navigate(`/assessment?company=${companyId}`);
+  };
 
-  // Auto-slide every 4 seconds
-  const slideCount = companies.length;
-  const nextSlide = useCallback(() => {
-    setCurrentSlide((prev) => (prev + 1) % Math.max(slideCount, 1));
-  }, [slideCount]);
-
-  const prevSlide = useCallback(() => {
-    setCurrentSlide((prev) => (prev - 1 + slideCount) % Math.max(slideCount, 1));
-  }, [slideCount]);
-
-  useEffect(() => {
-    if (slideCount <= 1) return;
-    const timer = setInterval(nextSlide, 4000);
-    return () => clearInterval(timer);
-  }, [nextSlide, slideCount]);
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="w-16 h-16 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
-      </div>
-    );
-  }
+  const nearestDaysLeft = roadmaps.length ? Math.min(...roadmaps.map((r) => r.daysRemaining)) : 0;
 
   const activeCompany = companies[currentSlide] || {};
   const industryImg = INDUSTRY_IMAGES[activeCompany.industry] || INDUSTRY_IMAGES.Engineering;
@@ -88,160 +49,73 @@ export default function StudentDashboard() {
         <p className="text-slate-500 mt-2">Track your placement preparation progress</p>
       </div>
 
-      {/* ── Stat cards ── */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
-        {[
-          { icon: TrendingUp, label: 'Readiness Score', value: `${stats?.readiness_score || 0}%` },
-          { icon: Map, label: 'Active Roadmap', value: stats?.active_roadmap || 0 },
-          { icon: Target, label: 'Progress %', value: `${stats?.progress_percentage || 0}%` },
-        ].map(({ icon: Icon, label, value }) => (
-          <div key={label} className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm hover:shadow-md transition-all">
-            <div className="flex items-center justify-between mb-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+        <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm hover:shadow-md transition-all" data-testid="stat-card-readiness">
+          <div className="flex items-center justify-between mb-4">
+            <div className="w-12 h-12 bg-indigo-50 rounded-lg flex items-center justify-center">
+              <TrendingUp className="w-6 h-6 text-indigo-600" />
+            </div>
+          </div>
+          <p className="text-xs uppercase tracking-wider font-semibold text-slate-400 mb-1">Readiness Score</p>
+          <p className="text-2xl font-semibold text-slate-900">{dashboardStats.readiness_score || 0}%</p>
+        </div>
+
+        <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm hover:shadow-md transition-all" data-testid="stat-card-roadmap">
+          <div className="flex items-center justify-between mb-4">
+            <div className="w-12 h-12 bg-indigo-50 rounded-lg flex items-center justify-center">
+              <Map className="w-6 h-6 text-indigo-600" />
+            </div>
+          </div>
+          <p className="text-xs uppercase tracking-wider font-semibold text-slate-400 mb-1">Active Roadmap</p>
+          <p className="text-2xl font-semibold text-slate-900">{dashboardStats.active_roadmap || 0}</p>
+        </div>
+
+        <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm hover:shadow-md transition-all" data-testid="stat-card-progress">
+          <div className="flex items-center justify-between mb-4">
+            <div className="w-12 h-12 bg-indigo-50 rounded-lg flex items-center justify-center">
+              <Target className="w-6 h-6 text-indigo-600" />
+            </div>
+          </div>
+          <p className="text-xs uppercase tracking-wider font-semibold text-slate-400 mb-1">Progress %</p>
+          <p className="text-2xl font-semibold text-slate-900">{dashboardStats.progress_percentage || 0}%</p>
+          <p className="text-xs text-slate-500 mt-1">{nearestDaysLeft} days left</p>
+        </div>
+      </div>
+
+      <div className="mb-6">
+        <h2 className="text-2xl font-semibold text-slate-900 mb-4" style={{fontFamily: 'Outfit'}}>Upcoming Companies</h2>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {companies.slice(0, 6).map((company, idx) => (
+          <div
+            key={idx}
+            data-testid={`company-card-${idx}`}
+            className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm hover:shadow-md transition-all"
+          >
+            <div className="flex items-start justify-between mb-4">
               <div className="w-12 h-12 bg-indigo-50 rounded-lg flex items-center justify-center">
                 <Icon className="w-6 h-6 text-indigo-600" />
               </div>
             </div>
-            <p className="text-xs uppercase tracking-wider font-semibold text-slate-400 mb-1">{label}</p>
-            <p className="text-2xl font-semibold text-slate-900">{value}</p>
+            <h3 className="text-lg font-medium text-slate-900 mb-1">{company.company_name}</h3>
+            <p className="text-sm text-slate-600 mb-4">{company.role}</p>
+            <div className="flex items-center justify-between text-xs text-slate-500 mb-4">
+              <span>{company.date}</span>
+              <span>{Math.max(0, Math.floor((new Date(company.date) - new Date()) / (1000 * 60 * 60 * 24)))} days left</span>
+            </div>
+            <button
+              onClick={() => openAssessment(company.id)}
+              data-testid={`prepare-button-${idx}`}
+              className="w-full bg-indigo-600 text-white py-2 rounded-lg text-sm font-medium hover:bg-indigo-700 transition-colors shadow-sm flex items-center justify-center gap-2"
+            >
+              Generate Roadmap
+              <ArrowRight className="w-4 h-4" />
+            </button>
           </div>
         ))}
       </div>
 
-      {/* ── Hero Ad Carousel ── */}
-      <div className="mb-10">
-        <div className="flex items-center justify-between mb-5">
-          <div className="flex items-center gap-2">
-            <Sparkles className="w-5 h-5 text-indigo-600" />
-            <h2 className="text-2xl font-semibold text-slate-900" style={{fontFamily: 'Outfit'}}>Upcoming Opportunities</h2>
-          </div>
-          <button onClick={() => navigate('/student/companies')} className="text-sm font-medium text-indigo-600 hover:text-indigo-800 flex items-center gap-1 transition-colors">
-            View all ({companies.length}) <ArrowRight className="w-4 h-4" />
-          </button>
-        </div>
-
-        {companies.length > 0 && (
-          <div className="relative group">
-            {/* Main card */}
-            <div
-              className="relative rounded-2xl overflow-hidden shadow-lg"
-              style={{ minHeight: 340 }}
-            >
-              {/* Background image */}
-              <div
-                className="absolute inset-0 transition-opacity duration-700"
-                style={{
-                  backgroundImage: `url(${industryImg})`,
-                  backgroundSize: 'cover',
-                  backgroundPosition: 'center',
-                }}
-              />
-              {/* Gradient overlay */}
-              <div className="absolute inset-0" style={{ background: industryGrad, opacity: 0.82 }} />
-
-              {/* Content */}
-              <div className="relative z-10 flex flex-col justify-between h-full p-8 md:p-10" style={{ minHeight: 340 }}>
-                <div>
-                  <span className="inline-block px-3 py-1 rounded-full text-xs font-bold tracking-wide text-white/90 bg-white/20 backdrop-blur-sm mb-3">
-                    {industryTag}
-                  </span>
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${
-                      activeCompany.status === 'active' ? 'bg-green-400 text-green-900' : 'bg-yellow-300 text-yellow-900'
-                    }`}>
-                      {activeCompany.status}
-                    </span>
-                  </div>
-                  <h3 className="text-3xl md:text-4xl font-bold text-white drop-shadow-lg mt-2" style={{fontFamily: 'Outfit'}}>
-                    {activeCompany.company_name}
-                  </h3>
-                  <p className="text-lg text-white/80 mt-1">{activeCompany.role}</p>
-                </div>
-
-                <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mt-6">
-                  <div className="flex flex-wrap gap-4 text-white/90 text-sm">
-                    <span className="flex items-center gap-1.5"><BriefcaseBusiness className="w-4 h-4" /> {activeCompany.package}</span>
-                    <span className="flex items-center gap-1.5"><Calendar className="w-4 h-4" /> {activeCompany.date}</span>
-                    <span className="hidden md:flex items-center gap-1.5">📋 {activeCompany.eligibility}</span>
-                  </div>
-                  <button
-                    onClick={() => navigate('/student/companies')}
-                    className="bg-white text-slate-900 px-6 py-2.5 rounded-lg text-sm font-semibold shadow-md hover:shadow-xl hover:scale-[1.03] transition-all flex items-center gap-2"
-                  >
-                    Apply Now <ArrowRight className="w-4 h-4" />
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            {/* Arrows */}
-            <button
-              onClick={prevSlide}
-              className="absolute left-3 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white/90 shadow-lg flex items-center justify-center hover:bg-white transition-all opacity-0 group-hover:opacity-100"
-            >
-              <ChevronLeft className="w-5 h-5 text-slate-700" />
-            </button>
-            <button
-              onClick={nextSlide}
-              className="absolute right-3 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white/90 shadow-lg flex items-center justify-center hover:bg-white transition-all opacity-0 group-hover:opacity-100"
-            >
-              <ChevronRight className="w-5 h-5 text-slate-700" />
-            </button>
-
-            {/* Dot indicators */}
-            <div className="flex justify-center gap-1.5 mt-4">
-              {companies.map((_, idx) => (
-                <button
-                  key={idx}
-                  onClick={() => setCurrentSlide(idx)}
-                  className={`rounded-full transition-all duration-300 ${
-                    idx === currentSlide ? 'w-6 h-2 bg-indigo-600' : 'w-2 h-2 bg-slate-300 hover:bg-slate-400'
-                  }`}
-                />
-              ))}
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* ── Quick-glance company list ── */}
-      <div>
-        <h2 className="text-xl font-semibold text-slate-900 mb-4" style={{fontFamily: 'Outfit'}}>All Hiring Companies ({companies.length})</h2>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-          {companies.map((company, idx) => (
-            <div
-              key={idx}
-              onClick={() => setCurrentSlide(idx)}
-              className={`relative bg-white border rounded-xl overflow-hidden cursor-pointer transition-all hover:shadow-md ${
-                idx === currentSlide ? 'border-indigo-400 ring-2 ring-indigo-100 shadow-md' : 'border-slate-200'
-              }`}
-            >
-              {/* Tiny image strip */}
-              <div
-                className="h-16 w-full"
-                style={{
-                  backgroundImage: `url(${INDUSTRY_IMAGES[company.industry] || INDUSTRY_IMAGES.Engineering})`,
-                  backgroundSize: 'cover',
-                  backgroundPosition: 'center',
-                }}
-              >
-                <div className="h-full w-full" style={{ background: INDUSTRY_GRADIENTS[company.industry] || INDUSTRY_GRADIENTS.Engineering, opacity: 0.7 }} />
-              </div>
-              <div className="p-4">
-                <div className="flex items-start justify-between gap-2 mb-1">
-                  <h4 className="text-sm font-semibold text-slate-900 line-clamp-1">{company.company_name}</h4>
-                  <span className={`flex-shrink-0 inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold uppercase ${
-                    company.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'
-                  }`}>
-                    {company.status}
-                  </span>
-                </div>
-                <p className="text-xs text-slate-500 line-clamp-1">{company.role}</p>
-                <p className="text-xs font-semibold text-indigo-600 mt-1">{company.package}</p>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
     </div>
   );
 }

@@ -1,17 +1,51 @@
 import React, { useEffect, useState } from 'react';
-import axios from 'axios';
-import { Plus, X } from 'lucide-react';
+import { FileUp, Plus, Upload, X } from 'lucide-react';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '../../components/ui/sheet';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
 import { Label } from '../../components/ui/label';
 import { toast } from 'sonner';
+import { useRoadmaps } from '../../contexts/RoadmapContext';
+
+const ACCEPTED_JD_TYPES = [
+  'application/pdf',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+];
+const ACCEPTED_JD_EXTENSIONS = ['.pdf', '.doc', '.docx'];
+const MAX_JD_SIZE = 5 * 1024 * 1024;
+
+function isValidJdFile(file) {
+  if (!file) return false;
+  const lowerName = (file.name || '').toLowerCase();
+  const hasValidExt = ACCEPTED_JD_EXTENSIONS.some((ext) => lowerName.endsWith(ext));
+  const hasValidType = ACCEPTED_JD_TYPES.includes(file.type);
+  return hasValidExt || hasValidType;
+}
+
+function toDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = () => reject(new Error('Failed to read file'));
+    reader.readAsDataURL(file);
+  });
+}
+
+function formatBytes(bytes) {
+  if (!Number.isFinite(bytes) || bytes <= 0) return '0 B';
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
 
 export default function CompanyAnnouncements() {
-  const [companies, setCompanies] = useState([]);
+  const { companies, addCompanyAnnouncement } = useRoadmaps();
   const [selectedCompany, setSelectedCompany] = useState(null);
   const [loading, setLoading] = useState(true);
   const [showAddDialog, setShowAddDialog] = useState(false);
+  const [isDraggingJd, setIsDraggingJd] = useState(false);
+  const [jdUpload, setJdUpload] = useState(null);
   const [newCompany, setNewCompany] = useState({
     company_name: '',
     role: '',
@@ -22,32 +56,78 @@ export default function CompanyAnnouncements() {
   });
 
   useEffect(() => {
-    fetchCompanies();
+    setLoading(false);
   }, []);
 
-  const fetchCompanies = async () => {
+  const resetAddCompanyState = () => {
+    setNewCompany({ company_name: '', role: '', date: '', eligibility: '', status: 'active', package: '' });
+    setJdUpload(null);
+    setIsDraggingJd(false);
+  };
+
+  const handleOpenChange = (open) => {
+    setShowAddDialog(open);
+    if (!open) resetAddCompanyState();
+  };
+
+  const processJdFile = async (file) => {
+    if (!file) return;
+
+    if (!isValidJdFile(file)) {
+      toast.error('Only PDF, DOC, or DOCX files are allowed');
+      return;
+    }
+
+    if (file.size > MAX_JD_SIZE) {
+      toast.error('JD file must be 5 MB or smaller');
+      return;
+    }
+
     try {
-      const { data } = await axios.get(`${process.env.REACT_APP_BACKEND_URL}/api/tpo/companies`, { withCredentials: true });
-      setCompanies(data);
-    } catch (error) {
-      console.error('Failed to fetch companies:', error);
-      toast.error('Failed to load companies');
-    } finally {
-      setLoading(false);
+      const dataUrl = await toDataUrl(file);
+      setJdUpload({
+        fileName: file.name,
+        fileType: file.type || 'application/octet-stream',
+        fileSize: file.size,
+        dataUrl
+      });
+      toast.success('JD uploaded');
+    } catch (_err) {
+      toast.error('Failed to upload JD file');
     }
   };
 
+  const handleJdFileInputChange = async (e) => {
+    const file = e.target.files?.[0];
+    await processJdFile(file);
+    e.target.value = '';
+  };
+
+  const handleDrop = async (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDraggingJd(false);
+    const file = e.dataTransfer.files?.[0];
+    await processJdFile(file);
+  };
+
   const handleAddCompany = async () => {
-    try {
-      await axios.post(`${process.env.REACT_APP_BACKEND_URL}/api/tpo/companies`, newCompany, { withCredentials: true });
-      toast.success('Company added successfully');
-      setShowAddDialog(false);
-      setNewCompany({ company_name: '', role: '', date: '', eligibility: '', status: 'active', package: '' });
-      fetchCompanies();
-    } catch (error) {
-      console.error('Failed to add company:', error);
-      toast.error('Failed to add company');
+    if (!newCompany.company_name || !newCompany.role || !newCompany.date || !newCompany.eligibility) {
+      toast.error('Please fill required fields');
+      return;
     }
+
+    // Append locally for mock mode
+    addCompanyAnnouncement({
+      ...newCompany,
+      jdFileName: jdUpload?.fileName,
+      jdFileType: jdUpload?.fileType,
+      jdFileSize: jdUpload?.fileSize,
+      jdDataUrl: jdUpload?.dataUrl
+    });
+    toast.success('Company added (mock)');
+    setShowAddDialog(false);
+    resetAddCompanyState();
   };
 
   if (loading) {
@@ -65,7 +145,7 @@ export default function CompanyAnnouncements() {
           <h1 className="text-4xl font-semibold text-slate-900 tracking-tight" style={{fontFamily: 'Outfit'}}>Company Announcements</h1>
           <p className="text-slate-500 mt-2">Manage company visits and announcements</p>
         </div>
-        <Sheet open={showAddDialog} onOpenChange={setShowAddDialog}>
+        <Sheet open={showAddDialog} onOpenChange={handleOpenChange}>
           <SheetTrigger asChild>
             <Button data-testid="add-company-button" className="bg-indigo-600 text-white rounded-lg px-4 py-2 text-sm font-medium hover:bg-indigo-700 transition-colors shadow-sm">
               <Plus className="w-4 h-4 mr-2" />
@@ -127,6 +207,59 @@ export default function CompanyAnnouncements() {
                   data-testid="add-company-package-input"
                   className="mt-1"
                 />
+              </div>
+              <div>
+                <Label htmlFor="jd_upload">JD (PDF / DOC / DOCX)</Label>
+                <label
+                  htmlFor="jd_upload"
+                  onDragEnter={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setIsDraggingJd(true);
+                  }}
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setIsDraggingJd(true);
+                  }}
+                  onDragLeave={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setIsDraggingJd(false);
+                  }}
+                  onDrop={handleDrop}
+                  className={`mt-1 flex flex-col items-center justify-center rounded-xl border-2 border-dashed px-4 py-6 text-center transition-colors cursor-pointer ${
+                    isDraggingJd ? 'border-indigo-500 bg-indigo-50' : 'border-slate-300 bg-slate-50 hover:border-indigo-400'
+                  }`}
+                >
+                  <Upload className="w-5 h-5 text-slate-500 mb-2" />
+                  <p className="text-sm font-medium text-slate-800">Drag and drop JD here</p>
+                  <p className="text-xs text-slate-500 mt-1">or click to browse (max 5 MB)</p>
+                  <p className="text-xs text-slate-400 mt-1">PDF, DOC, DOCX</p>
+                </label>
+                <Input
+                  id="jd_upload"
+                  type="file"
+                  accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                  onChange={handleJdFileInputChange}
+                  className="hidden"
+                />
+                {jdUpload && (
+                  <div className="mt-2 rounded-lg border border-slate-200 bg-white p-3 flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-slate-800 truncate">{jdUpload.fileName}</p>
+                      <p className="text-xs text-slate-500">{formatBytes(jdUpload.fileSize)}</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setJdUpload(null)}
+                      className="text-slate-400 hover:text-slate-600"
+                      aria-label="Remove uploaded JD"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                )}
               </div>
               <Button
                 onClick={handleAddCompany}
@@ -219,6 +352,20 @@ export default function CompanyAnnouncements() {
                 <p className="text-xs uppercase tracking-wider font-semibold text-slate-400 mb-2">Students Applied</p>
                 <p className="text-sm text-slate-600">15 students have applied for this position</p>
               </div>
+
+              {selectedCompany.jdDataUrl && (
+                <div>
+                  <p className="text-xs uppercase tracking-wider font-semibold text-slate-400 mb-2">Job Description</p>
+                  <a
+                    href={selectedCompany.jdDataUrl}
+                    download={selectedCompany.jdFileName || 'JD'}
+                    className="inline-flex items-center gap-2 text-sm font-medium text-indigo-600 hover:text-indigo-700"
+                  >
+                    <FileUp className="w-4 h-4" />
+                    Download {selectedCompany.jdFileName || 'JD'}
+                  </a>
+                </div>
+              )}
 
               <div>
                 <p className="text-xs uppercase tracking-wider font-semibold text-slate-400 mb-2">Avg Readiness Score</p>

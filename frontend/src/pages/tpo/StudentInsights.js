@@ -1,5 +1,4 @@
 import React, { useEffect, useState } from 'react';
-import axios from 'axios';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select';
 
 export default function StudentInsights() {
@@ -9,26 +8,37 @@ export default function StudentInsights() {
   const [readinessFilter, setReadinessFilter] = useState('');
 
   useEffect(() => {
+    const fetchStudents = async () => {
+      try {
+        const mockStudents = [
+          { id: 1, name: 'Aarav Kumar', branch: 'Computer Science', readiness_score: 85, weak_skills: ['DSA', 'System Design'] },
+          { id: 2, name: 'Priya Singh', branch: 'Computer Science', readiness_score: 92, weak_skills: ['Networking'] },
+          { id: 3, name: 'Rohan Patel', branch: 'Electronics', readiness_score: 68, weak_skills: ['DSA', 'Web Development', 'System Design'] },
+          { id: 4, name: 'Neha Sharma', branch: 'Mechanical', readiness_score: 45, weak_skills: ['Programming', 'DSA', 'Database Design'] },
+          { id: 5, name: 'Arjun Verma', branch: 'Civil', readiness_score: 55, weak_skills: ['Coding', 'DSA'] },
+          { id: 6, name: 'Disha Gupta', branch: 'Computer Science', readiness_score: 78, weak_skills: ['System Design'] },
+        ];
+
+        let filtered = mockStudents;
+
+        if (branchFilter) {
+          filtered = filtered.filter(s => s.branch === branchFilter);
+        }
+
+        if (readinessFilter) {
+          filtered = filtered.filter(s => s.readiness_score >= parseInt(readinessFilter));
+        }
+
+        setStudents(filtered);
+      } catch (error) {
+        console.error('Failed to fetch students:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
     fetchStudents();
   }, [branchFilter, readinessFilter]);
-
-  const fetchStudents = async () => {
-    try {
-      const params = new URLSearchParams();
-      if (branchFilter) params.append('branch', branchFilter);
-      if (readinessFilter) params.append('min_readiness', readinessFilter);
-      
-      const { data } = await axios.get(
-        `${process.env.REACT_APP_BACKEND_URL}/api/tpo/students?${params.toString()}`,
-        { withCredentials: true }
-      );
-      setStudents(data);
-    } catch (error) {
-      console.error('Failed to fetch students:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   if (loading) {
     return (
@@ -46,12 +56,12 @@ export default function StudentInsights() {
       </div>
 
       <div className="flex gap-4 mb-6">
-        <Select value={branchFilter} onValueChange={setBranchFilter}>
+        <Select value={branchFilter || "all"} onValueChange={(val) => setBranchFilter(val === "all" ? "" : val)}>
           <SelectTrigger className="w-[200px]" data-testid="filter-branch">
             <SelectValue placeholder="All Branches" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="">All Branches</SelectItem>
+            <SelectItem value="all">All Branches</SelectItem>
             <SelectItem value="Computer Science">Computer Science</SelectItem>
             <SelectItem value="Electronics">Electronics</SelectItem>
             <SelectItem value="Mechanical">Mechanical</SelectItem>
@@ -59,12 +69,12 @@ export default function StudentInsights() {
           </SelectContent>
         </Select>
 
-        <Select value={readinessFilter} onValueChange={setReadinessFilter}>
+        <Select value={readinessFilter || "all"} onValueChange={(val) => setReadinessFilter(val === "all" ? "" : val)}>
           <SelectTrigger className="w-[200px]" data-testid="filter-readiness">
             <SelectValue placeholder="All Readiness" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="">All Readiness</SelectItem>
+            <SelectItem value="all">All Readiness</SelectItem>
             <SelectItem value="70">70% and above</SelectItem>
             <SelectItem value="60">60% and above</SelectItem>
             <SelectItem value="50">50% and above</SelectItem>

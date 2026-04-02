@@ -86,6 +86,74 @@ const QUIZ_BANK = {
   ]
 };
 
+const COMPANY_QUIZ_OVERRIDES = {
+  klingelnberg: [
+    {
+      question: 'In JavaScript, what is the output type of Promise.all([...])?',
+      options: ['Array', 'Promise', 'Object', 'String'],
+      correctIndex: 1
+    },
+    {
+      question: 'Which SQL clause is best to limit returned records?',
+      options: ['FILTER', 'TOP', 'LIMIT', 'ORDER'],
+      correctIndex: 2
+    },
+    {
+      question: 'What does REST recommend for updating an existing resource fully?',
+      options: ['GET', 'POST', 'PUT', 'PATCH'],
+      correctIndex: 2
+    },
+    {
+      question: 'Which data structure gives O(1) average lookup by key?',
+      options: ['Array', 'Linked List', 'Hash Map', 'Stack'],
+      correctIndex: 2
+    },
+    {
+      question: 'Most effective first step when a production API latency spikes?',
+      options: ['Restart everything', 'Check logs/metrics and isolate bottleneck', 'Rewrite endpoint', 'Disable auth'],
+      correctIndex: 1
+    }
+  ],
+  seiton: [
+    {
+      question: 'What is the primary use of Git branching?',
+      options: ['Store binaries', 'Parallel feature development', 'Run tests', 'Deploy to prod'],
+      correctIndex: 1
+    },
+    {
+      question: 'Which HTTP status indicates resource was created successfully?',
+      options: ['200', '201', '204', '301'],
+      correctIndex: 1
+    },
+    {
+      question: 'In OOP, encapsulation means:',
+      options: ['Repeating methods', 'Combining data and behavior with access control', 'Only using inheritance', 'Avoiding classes'],
+      correctIndex: 1
+    },
+    {
+      question: 'Which is a good practice for secure password storage?',
+      options: ['Plain text', 'Base64', 'Hashed with salt', 'Encrypted in frontend only'],
+      correctIndex: 2
+    },
+    {
+      question: 'When a bug is not reproducible locally, what should you do first?',
+      options: ['Close issue', 'Collect environment details and logs', 'Force deploy', 'Change framework'],
+      correctIndex: 1
+    }
+  ]
+};
+
+const COMPANY_PREP_PROFILES = {
+  klingelnberg: {
+    focus: ['Data Structures', 'JavaScript/TypeScript', 'REST API Design', 'SQL Querying', 'Debugging and Logging', 'System Basics'],
+    soft: ['Stakeholder communication', 'Requirement clarification', 'Incident response updates']
+  },
+  seiton: {
+    focus: ['OOP Fundamentals', 'Git Workflow', 'Backend API Basics', 'Testing Fundamentals', 'Database CRUD', 'Code Review Readiness'],
+    soft: ['Daily status communication', 'Team collaboration', 'Interview self-introduction']
+  }
+};
+
 const DOMAIN_PROFILES = {
   mechanical: {
     requiredSkills: {
@@ -165,7 +233,7 @@ function createCompany(config) {
   return {
     ...config,
     shortJD: buildShortJD(config),
-    intelligence: buildIntelligence(config.domain, config.company_name, config.role)
+    intelligence: config.intelligence || buildIntelligence(config.domain, config.company_name, config.role)
   };
 }
 
@@ -413,6 +481,64 @@ const COMPANY_INTELLIGENCE = [
     package: '4.0 LPA'
   }),
   createCompany({
+    id: 'klingelnberg',
+    domain: 'automation',
+    industry: 'Engineering',
+    company_name: 'Klingelnberg India Pvt. Ltd.',
+    role: 'Junior Software Engineer',
+    date: '2026-07-12',
+    eligibility: 'CS / IT / E&TC, CGPA >= 6.5',
+    status: 'upcoming',
+    package: '6.2 LPA',
+    jdDataUrl: '/jd/klingelnberg-jd-junior-software-engineer.pdf',
+    intelligence: {
+      requiredSkills: {
+        technical: ['JavaScript/TypeScript', 'REST APIs', 'SQL', 'Data Structures', 'Debugging'],
+        soft: ['Communication', 'Problem Solving', 'Team Collaboration']
+      },
+      pastHiringPatterns: 'Rounds typically assess coding fundamentals, API/backend understanding, and practical debugging approach.',
+      ratio: { technical: 75, soft: 25 },
+      salaryBand: 'Rs 4.8L - Rs 6.5L',
+      screeningProcess: 'Online assessment + Technical interview + HR',
+      interviewQuestions: [
+        { type: 'Technical', question: 'How would you optimize a slow API endpoint?', answer: 'Profile DB calls, add indexes, reduce payload, cache where suitable, and monitor latency improvements.' },
+        { type: 'Technical', question: 'Explain when to use async/await over callbacks.', answer: 'Async/await improves readability for sequential async flows with structured error handling.' },
+        { type: 'Situational', question: 'Production bug before deadline. What is your process?', answer: 'Reproduce quickly, isolate root cause, patch safely, add tests, and communicate timeline transparently.' },
+        { type: 'HR', question: 'Why Klingelnberg?', answer: 'The role offers strong engineering exposure and practical software problem-solving in a high-impact domain.' },
+        { type: 'HR', question: 'How do you prepare for a new codebase?', answer: 'I read architecture docs, run locally, trace key flows, and contribute small, reviewed changes first.' }
+      ]
+    }
+  }),
+  createCompany({
+    id: 'seiton',
+    domain: 'automation',
+    industry: 'IT',
+    company_name: 'Seiton Technologies Pvt. Ltd.',
+    role: 'Trainee Engineer (Software)',
+    date: '2026-07-16',
+    eligibility: 'CS / IT / E&TC, CGPA >= 6.0',
+    status: 'upcoming',
+    package: '5.4 LPA',
+    jdDataUrl: '/jd/seiton-jd-2511jdte-job-description.pdf',
+    intelligence: {
+      requiredSkills: {
+        technical: ['Core Java/Python', 'OOP', 'Git', 'API Integration', 'Basic Testing'],
+        soft: ['Communication', 'Ownership', 'Learning Agility']
+      },
+      pastHiringPatterns: 'Focuses on practical coding basics, version control habits, and clear communication during problem solving.',
+      ratio: { technical: 70, soft: 30 },
+      salaryBand: 'Rs 4.2L - Rs 5.8L',
+      screeningProcess: 'Aptitude + Technical interview + Managerial round',
+      interviewQuestions: [
+        { type: 'Technical', question: 'How does inheritance help in software design?', answer: 'It enables reusable base behavior while allowing specialized child classes with clear abstraction.' },
+        { type: 'Technical', question: 'What is your approach to unit testing?', answer: 'Test core logic paths, edge cases, and expected failures with small independent tests.' },
+        { type: 'Situational', question: 'Teammate submits buggy code before release. What do you do?', answer: 'Review with evidence, pair to fix critical issues, retest impacted modules, and support timely release.' },
+        { type: 'HR', question: 'Why Seiton?', answer: 'It provides the right trainee environment to build strong engineering fundamentals and delivery discipline.' },
+        { type: 'HR', question: 'How do you learn under pressure?', answer: 'I break tasks into short milestones, learn quickly from docs/examples, and validate incrementally.' }
+      ]
+    }
+  }),
+  createCompany({
     id: 'finiq-consulting',
     domain: 'automation',
     industry: 'IT',
@@ -457,24 +583,7 @@ function getInitialRoadmaps() {
 }
 
 function getInitialCompanies() {
-  try {
-    const raw = localStorage.getItem('placementhub.companies');
-    if (!raw) return COMPANY_INTELLIGENCE;
-
-    const saved = JSON.parse(raw);
-    if (!Array.isArray(saved)) return COMPANY_INTELLIGENCE;
-
-    const savedById = new Map(saved.map((company) => [company.id, company]));
-    const merged = COMPANY_INTELLIGENCE.map((company) => {
-      const savedCompany = savedById.get(company.id);
-      return savedCompany ? { ...company, ...savedCompany } : company;
-    });
-
-    const extraCustomCompanies = saved.filter((company) => !merged.some((base) => base.id === company.id));
-    return [...merged, ...extraCustomCompanies];
-  } catch (_err) {
-    return COMPANY_INTELLIGENCE;
-  }
+  return COMPANY_INTELLIGENCE;
 }
 
 function computeMode(totalDays) {
@@ -557,8 +666,10 @@ function buildDynamicDayPlans(company, assessment, skillGaps) {
   const [minTasks, maxTasks] = tasksPerDay(hoursPerDay);
   const mode = computeMode(totalDays);
 
-  const domainFocus = company.intelligence.requiredSkills.technical;
+  const companyProfile = COMPANY_PREP_PROFILES[company.id] || null;
+  const domainFocus = companyProfile?.focus || company.intelligence.requiredSkills.technical;
   const focusPool = (skillGaps.length ? skillGaps : domainFocus).slice(0, 6);
+  const softFocusPool = companyProfile?.soft || ['Communication practice for interview', 'Resume and self-introduction practice'];
 
   const revisionStart = Math.max(1, totalDays - Math.ceil(totalDays * 0.2) + 1);
 
@@ -581,7 +692,7 @@ function buildDynamicDayPlans(company, assessment, skillGaps) {
       } else {
         const softBlock = mode.key !== 'crash' && t % 3 === 2;
         if (softBlock) {
-          title = t % 2 === 0 ? 'Communication practice for interview' : 'Resume and self-introduction practice';
+          title = softFocusPool[(day + t) % softFocusPool.length] || (t % 2 === 0 ? 'Communication practice for interview' : 'Resume and self-introduction practice');
           type = 'soft';
         } else {
           title = `${focusPool[(day + t) % focusPool.length] || domainFocus[(day + t) % domainFocus.length]} practice`;
@@ -626,14 +737,18 @@ export function RoadmapProvider({ children }) {
   const [roadmaps, setRoadmaps] = useState(getInitialRoadmaps);
 
   useEffect(() => {
+    // Cleanup legacy cache so old stale company lists don't override current defaults.
+    localStorage.removeItem('placementhub.companies');
+  }, []);
+
+  useEffect(() => {
     localStorage.setItem('placementhub.roadmaps', JSON.stringify(roadmaps));
   }, [roadmaps]);
 
-  useEffect(() => {
-    localStorage.setItem('placementhub.companies', JSON.stringify(companies));
-  }, [companies]);
-
   const getCompanyQuiz = (companyId) => {
+    if (COMPANY_QUIZ_OVERRIDES[companyId]) {
+      return COMPANY_QUIZ_OVERRIDES[companyId];
+    }
     const company = companies.find((c) => c.id === companyId);
     const domain = company?.domain || 'mechanical';
     return QUIZ_BANK[domain] || QUIZ_BANK.mechanical;

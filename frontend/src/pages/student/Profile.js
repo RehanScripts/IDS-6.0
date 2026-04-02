@@ -48,37 +48,39 @@ const ABHAY_PROFILE = {
 
 export default function Profile() {
   const { user } = useAuth();
-  const p = ABHAY_PROFILE;
+  const p = {
+    ...ABHAY_PROFILE,
+    name: user?.name || ABHAY_PROFILE.name,
+    email: user?.email || ABHAY_PROFILE.email
+  };
 
   return (
-    <div className="p-6 md:p-8 max-w-5xl mx-auto" data-testid="profile-page">
+    <div className="p-6 md:p-8 max-w-6xl mx-auto bg-sky-50 min-h-screen" data-testid="profile-page">
       <div className="mb-8">
-        <h1 className="text-4xl font-semibold text-slate-900 tracking-tight" style={{fontFamily: 'Outfit'}}>Profile</h1>
-        <p className="text-slate-500 mt-2">Your personal & academic information</p>
+        <h1 className="text-4xl font-semibold text-blue-950 tracking-tight" style={{fontFamily: 'Outfit'}}>Profile</h1>
+        <p className="text-blue-900/70 mt-2">Your personal, academic and placement readiness details</p>
       </div>
 
-      {/* ── Hero card ─────────────────────────────────────────── */}
-      <div className="bg-white border border-slate-200 rounded-xl p-8 shadow-sm mb-6">
-        <div className="flex flex-col md:flex-row items-start md:items-center gap-6 mb-6 pb-6 border-b border-slate-200">
-          <div className="w-24 h-24 bg-indigo-600 rounded-full flex items-center justify-center text-white text-4xl font-semibold flex-shrink-0">
+      <div className="bg-white border border-blue-100 rounded-2xl p-8 shadow-sm mb-6">
+        <div className="flex flex-col md:flex-row items-start md:items-center gap-6 mb-6 pb-6 border-b border-blue-100">
+          <div className="w-24 h-24 bg-sky-700 rounded-full flex items-center justify-center text-white text-4xl font-semibold flex-shrink-0 shadow-md">
             {p.name[0]}
           </div>
           <div className="flex-1">
-            <h2 className="text-2xl font-semibold text-slate-900" style={{fontFamily: 'Outfit'}}>{p.name}</h2>
-            <p className="text-indigo-600 font-medium mt-0.5">{p.headline}</p>
-            <p className="text-slate-500 text-sm mt-1">{p.college}</p>
+            <h2 className="text-2xl font-semibold text-blue-950" style={{fontFamily: 'Outfit'}}>{p.name}</h2>
+            <p className="text-sky-700 font-medium mt-0.5">{p.headline}</p>
+            <p className="text-blue-900/60 text-sm mt-1">{p.college}</p>
             <div className="flex flex-wrap gap-3 mt-3">
-              <span className="inline-flex items-center gap-1- text-xs px-2.5 py-1 rounded-full bg-green-100 text-green-800 font-medium">
+              <span className="inline-flex items-center text-xs px-2.5 py-1 rounded-full bg-sky-100 text-sky-800 font-medium border border-sky-200">
                 <Star className="w-3 h-3 mr-1" /> Readiness: {p.readinessScore}%
               </span>
-              <span className="inline-flex items-center text-xs px-2.5 py-1 rounded-full bg-yellow-100 text-yellow-800 font-medium">
+              <span className="inline-flex items-center text-xs px-2.5 py-1 rounded-full bg-blue-100 text-blue-800 font-medium border border-blue-200">
                 {p.placementStatus}
               </span>
             </div>
           </div>
         </div>
 
-        {/* Basic Info grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-y-5 gap-x-8">
           {[
             { icon: Mail, label: "Email", value: p.email },
@@ -92,108 +94,106 @@ export default function Profile() {
             { icon: Calendar, label: "Date of Birth", value: p.dob },
           ].map(({ icon: Icon, label, value }) => (
             <div className="flex items-center gap-3" key={label}>
-              <div className="w-9 h-9 bg-indigo-50 rounded-lg flex items-center justify-center flex-shrink-0">
-                <Icon className="w-4 h-4 text-indigo-600" />
+              <div className="w-9 h-9 bg-sky-50 rounded-lg flex items-center justify-center flex-shrink-0 border border-sky-100">
+                <Icon className="w-4 h-4 text-sky-700" />
               </div>
               <div>
-                <p className="text-[10px] uppercase tracking-wider font-semibold text-slate-400">{label}</p>
-                <p className="text-sm font-medium text-slate-900">{value}</p>
+                <p className="text-[10px] uppercase tracking-wider font-semibold text-blue-700/70">{label}</p>
+                <p className="text-sm font-medium text-blue-950">{value}</p>
               </div>
             </div>
           ))}
         </div>
       </div>
 
-      {/* ── About ────────────────────────────────────────────── */}
-      <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm mb-6">
-        <h3 className="text-lg font-semibold text-slate-900 mb-3" style={{fontFamily: 'Outfit'}}>About</h3>
-        <p className="text-sm text-slate-600 leading-relaxed">{p.about}</p>
-      </div>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-1 space-y-6">
+          <div className="bg-white border border-blue-100 rounded-xl p-6 shadow-sm">
+            <h3 className="text-lg font-semibold text-blue-950 mb-3" style={{fontFamily: 'Outfit'}}>About</h3>
+            <p className="text-sm text-blue-900/80 leading-relaxed">{p.about}</p>
+          </div>
 
-      {/* ── Skills ────────────────────────────────────────────── */}
-      <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm mb-6">
-        <h3 className="text-lg font-semibold text-slate-900 mb-3 flex items-center gap-2" style={{fontFamily: 'Outfit'}}>
-          <Code className="w-5 h-5 text-indigo-600" /> Skills
-        </h3>
-        <div className="flex flex-wrap gap-2">
-          {p.skills.map((s) => (
-            <span key={s} className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-indigo-50 text-indigo-700 border border-indigo-100">{s}</span>
-          ))}
-        </div>
-      </div>
-
-      {/* ── Internships ─────────────────────────────────────── */}
-      <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm mb-6">
-        <h3 className="text-lg font-semibold text-slate-900 mb-4 flex items-center gap-2" style={{fontFamily: 'Outfit'}}>
-          <Briefcase className="w-5 h-5 text-indigo-600" /> Internships
-        </h3>
-        <div className="space-y-5">
-          {p.internships.map((i, idx) => (
-            <div key={idx} className="border-l-2 border-indigo-200 pl-4">
-              <h4 className="text-sm font-semibold text-slate-900">{i.company}</h4>
-              <p className="text-xs text-indigo-600 font-medium">{i.role} &middot; {i.duration}</p>
-              <p className="text-sm text-slate-600 mt-1">{i.description}</p>
+          <div className="bg-white border border-blue-100 rounded-xl p-6 shadow-sm">
+            <h3 className="text-lg font-semibold text-blue-950 mb-3 flex items-center gap-2" style={{fontFamily: 'Outfit'}}>
+              <Code className="w-5 h-5 text-sky-700" /> Skills
+            </h3>
+            <div className="flex flex-wrap gap-2">
+              {p.skills.map((s) => (
+                <span key={s} className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-sky-50 text-sky-800 border border-sky-100">{s}</span>
+              ))}
             </div>
-          ))}
-        </div>
-      </div>
+          </div>
 
-      {/* ── Projects ─────────────────────────────────────────── */}
-      <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm mb-6">
-        <h3 className="text-lg font-semibold text-slate-900 mb-4 flex items-center gap-2" style={{fontFamily: 'Outfit'}}>
-          <Wrench className="w-5 h-5 text-indigo-600" /> Projects
-        </h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {p.projects.map((proj, idx) => (
-            <div key={idx} className="border border-slate-200 rounded-lg p-4 hover:shadow-md transition-all">
-              <h4 className="text-sm font-semibold text-slate-900 mb-1">{proj.title}</h4>
-              <p className="text-xs text-slate-600 mb-2">{proj.description}</p>
-              <p className="text-[10px] uppercase tracking-wider text-indigo-600 font-semibold">{proj.tech}</p>
+          <div className="bg-white border border-blue-100 rounded-xl p-6 shadow-sm">
+            <h3 className="text-lg font-semibold text-blue-950 mb-3" style={{fontFamily: 'Outfit'}}>Languages & Hobbies</h3>
+            <p className="text-xs uppercase tracking-[0.14em] text-blue-700/70 font-semibold mb-2">Languages</p>
+            <div className="flex flex-wrap gap-2 mb-4">
+              {p.languages.map((l) => (
+                <span key={l} className="px-3 py-1 rounded-full text-xs font-medium bg-blue-50 text-blue-800">{l}</span>
+              ))}
             </div>
-          ))}
-        </div>
-      </div>
-
-      {/* ── Certifications ───────────────────────────────────── */}
-      <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm mb-6">
-        <h3 className="text-lg font-semibold text-slate-900 mb-3 flex items-center gap-2" style={{fontFamily: 'Outfit'}}>
-          <Award className="w-5 h-5 text-indigo-600" /> Certifications
-        </h3>
-        <ul className="space-y-2">
-          {p.certifications.map((c, i) => (
-            <li key={i} className="flex items-start gap-2 text-sm text-slate-700">
-              <span className="text-indigo-500 mt-0.5">•</span> {c}
-            </li>
-          ))}
-        </ul>
-      </div>
-
-      {/* ── Achievements ─────────────────────────────────────── */}
-      <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm mb-6">
-        <h3 className="text-lg font-semibold text-slate-900 mb-3" style={{fontFamily: 'Outfit'}}>Achievements</h3>
-        <ul className="space-y-2">
-          {p.achievements.map((a, i) => (
-            <li key={i} className="text-sm text-slate-700">{a}</li>
-          ))}
-        </ul>
-      </div>
-
-      {/* ── Languages & Hobbies ──────────────────────────────── */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-        <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm">
-          <h3 className="text-lg font-semibold text-slate-900 mb-3" style={{fontFamily: 'Outfit'}}>Languages</h3>
-          <div className="flex flex-wrap gap-2">
-            {p.languages.map((l) => (
-              <span key={l} className="px-3 py-1 rounded-full text-xs font-medium bg-slate-100 text-slate-700">{l}</span>
-            ))}
+            <p className="text-xs uppercase tracking-[0.14em] text-blue-700/70 font-semibold mb-2">Hobbies</p>
+            <div className="flex flex-wrap gap-2">
+              {p.hobbies.map((h) => (
+                <span key={h} className="px-3 py-1 rounded-full text-xs font-medium bg-blue-50 text-blue-800">{h}</span>
+              ))}
+            </div>
           </div>
         </div>
-        <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm">
-          <h3 className="text-lg font-semibold text-slate-900 mb-3" style={{fontFamily: 'Outfit'}}>Hobbies</h3>
-          <div className="flex flex-wrap gap-2">
-            {p.hobbies.map((h) => (
-              <span key={h} className="px-3 py-1 rounded-full text-xs font-medium bg-slate-100 text-slate-700">{h}</span>
-            ))}
+
+        <div className="lg:col-span-2 space-y-6">
+          <div className="bg-white border border-blue-100 rounded-xl p-6 shadow-sm">
+            <h3 className="text-lg font-semibold text-blue-950 mb-4 flex items-center gap-2" style={{fontFamily: 'Outfit'}}>
+              <Briefcase className="w-5 h-5 text-sky-700" /> Internships
+            </h3>
+            <div className="space-y-5">
+              {p.internships.map((i, idx) => (
+                <div key={idx} className="border-l-2 border-sky-200 pl-4">
+                  <h4 className="text-sm font-semibold text-blue-950">{i.company}</h4>
+                  <p className="text-xs text-sky-700 font-medium">{i.role} &middot; {i.duration}</p>
+                  <p className="text-sm text-blue-900/80 mt-1">{i.description}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="bg-white border border-blue-100 rounded-xl p-6 shadow-sm">
+            <h3 className="text-lg font-semibold text-blue-950 mb-4 flex items-center gap-2" style={{fontFamily: 'Outfit'}}>
+              <Wrench className="w-5 h-5 text-sky-700" /> Projects
+            </h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {p.projects.map((proj, idx) => (
+                <div key={idx} className="border border-blue-100 rounded-lg p-4 hover:shadow-md transition-all">
+                  <h4 className="text-sm font-semibold text-blue-950 mb-1">{proj.title}</h4>
+                  <p className="text-xs text-blue-900/80 mb-2">{proj.description}</p>
+                  <p className="text-[10px] uppercase tracking-wider text-sky-700 font-semibold">{proj.tech}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="bg-white border border-blue-100 rounded-xl p-6 shadow-sm">
+              <h3 className="text-lg font-semibold text-blue-950 mb-3 flex items-center gap-2" style={{fontFamily: 'Outfit'}}>
+                <Award className="w-5 h-5 text-sky-700" /> Certifications
+              </h3>
+              <ul className="space-y-2">
+                {p.certifications.map((c, i) => (
+                  <li key={i} className="flex items-start gap-2 text-sm text-blue-900/80">
+                    <span className="text-sky-600 mt-0.5">•</span> {c}
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            <div className="bg-white border border-blue-100 rounded-xl p-6 shadow-sm">
+              <h3 className="text-lg font-semibold text-blue-950 mb-3" style={{fontFamily: 'Outfit'}}>Achievements</h3>
+              <ul className="space-y-2">
+                {p.achievements.map((a, i) => (
+                  <li key={i} className="text-sm text-blue-900/80">{a}</li>
+                ))}
+              </ul>
+            </div>
           </div>
         </div>
       </div>

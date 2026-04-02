@@ -40,6 +40,14 @@ export default function Companies() {
     navigate(`/assessment?company=${companyId}`);
   };
 
+  const openCompanyJD = (company) => {
+    if (company?.jdDataUrl) {
+      window.open(company.jdDataUrl, '_blank', 'noopener,noreferrer');
+      return;
+    }
+    setJdCompany(company);
+  };
+
   return (
     <div className="p-6 md:p-8 bg-blue-50/40 min-h-screen" data-testid="companies-page">
       <div className="mb-6">
@@ -139,7 +147,7 @@ export default function Companies() {
               <button
                 onClick={(e) => {
                   e.stopPropagation();
-                  setJdCompany(company);
+                  openCompanyJD(company);
                 }}
                 className="w-full mt-2 bg-blue-100 text-blue-900 py-2 rounded-lg text-sm font-medium hover:bg-blue-200 transition-colors active:scale-[0.97]"
               >

@@ -30,14 +30,14 @@ html, body, #root {
   width: 2.25rem;
   height: 2.25rem;
   border-radius: 9999px;
-  background: #2563eb;
+  background: #0284c7;
   color: #ffffff;
   font-size: 0.75rem;
   font-weight: 700;
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 8px 18px rgba(37, 99, 235, 0.28);
+  box-shadow: 0 8px 18px rgba(2, 132, 199, 0.28);
 }
 
 .student-nav-item {
@@ -45,8 +45,8 @@ html, body, #root {
 }
 
 .student-nav-item-active {
-  background: rgba(37, 99, 235, 0.12);
-  box-shadow: inset 0 0 0 1px rgba(37, 99, 235, 0.2), 0 6px 16px rgba(37, 99, 235, 0.12);
+  background: rgba(14, 165, 233, 0.14);
+  box-shadow: inset 0 0 0 1px rgba(14, 165, 233, 0.26), 0 6px 16px rgba(14, 165, 233, 0.12);
 }
 
 .student-nav-item-active::before {
@@ -57,7 +57,7 @@ html, body, #root {
   bottom: 0.6rem;
   width: 3px;
   border-radius: 99px;
-  background: #2563eb;
+  background: #0284c7;
 }
 
 .student-profile-shell {
@@ -66,7 +66,7 @@ html, body, #root {
 }
 
 .metric-card {
-  border: 1px solid rgba(37, 99, 235, 0.12);
+  border: 1px solid rgba(14, 165, 233, 0.22);
   background: #ffffff;
   box-shadow: 0 14px 35px rgba(15, 23, 42, 0.06);
   transition: transform 240ms ease, box-shadow 240ms ease;
@@ -94,7 +94,7 @@ html, body, #root {
   width: 3rem;
   height: 3rem;
   border-radius: 0.9rem;
-  background: #dbeafe;
+  background: #e0f2fe;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -124,11 +124,11 @@ html, body, #root {
 }
 
 .slide-enter-right {
-  animation: slideInRightBlur 520ms cubic-bezier(0.22, 0.61, 0.36, 1);
+  animation: slideInRightBlur 860ms cubic-bezier(0.2, 0.7, 0.2, 1);
 }
 
 .slide-enter-left {
-  animation: slideInLeftBlur 520ms cubic-bezier(0.22, 0.61, 0.36, 1);
+  animation: slideInLeftBlur 860ms cubic-bezier(0.2, 0.7, 0.2, 1);
 }
 
 @keyframes metricFloatIn {
@@ -155,8 +155,8 @@ html, body, #root {
 @keyframes slideInRightBlur {
   from {
     opacity: 0;
-    transform: translateX(60px) scale(0.99);
-    filter: blur(9px);
+    transform: translateX(28px) scale(0.995);
+    filter: blur(5px);
   }
   to {
     opacity: 1;
@@ -168,8 +168,8 @@ html, body, #root {
 @keyframes slideInLeftBlur {
   from {
     opacity: 0;
-    transform: translateX(-60px) scale(0.99);
-    filter: blur(9px);
+    transform: translateX(-28px) scale(0.995);
+    filter: blur(5px);
   }
   to {
     opacity: 1;
@@ -191,59 +191,63 @@ html, body, #root {
   }
 }
 
-.theme-dark body,
-.theme-dark #root {
+.theme-dark .student-layout-root,
+.theme-dark .student-dashboard-root {
   background: #0b1220;
   color: #dbeafe;
 }
 
-.theme-dark .student-sidebar-panel {
+.theme-dark .student-layout-root .student-sidebar-panel {
   background: #0f172a;
   border-right-color: rgba(96, 165, 250, 0.2);
 }
 
-.theme-dark .student-nav-item-active {
+.theme-dark .student-layout-root .student-nav-item-active {
   background: rgba(37, 99, 235, 0.26);
 }
 
-.theme-dark .student-profile-shell,
-.theme-dark .student-site-footer,
-.theme-dark .student-top-header {
+.theme-dark .student-layout-root .student-profile-shell,
+.theme-dark .student-layout-root .student-site-footer,
+.theme-dark .student-layout-root .student-top-header {
   background: #111b31;
   border-color: rgba(96, 165, 250, 0.18);
 }
 
-.theme-dark .metric-card {
+.theme-dark .student-dashboard-root .metric-card {
   background: #111b31;
   border-color: rgba(96, 165, 250, 0.2);
 }
 
-.theme-dark .metric-icon-shell {
+.theme-dark .student-dashboard-root .metric-icon-shell {
   background: rgba(59, 130, 246, 0.18);
 }
 
-.theme-dark .text-blue-950,
-.theme-dark .text-slate-900 {
+.theme-dark .student-layout-root [class*="text-blue-950"],
+.theme-dark .student-layout-root [class*="text-slate-900"] {
   color: #e2e8f0 !important;
 }
 
-.theme-dark .text-blue-900,
-.theme-dark .text-blue-800,
-.theme-dark .text-slate-700,
-.theme-dark .text-slate-600,
-.theme-dark .text-slate-500 {
-  color: #93c5fd !important;
+.theme-dark .student-layout-root [class*="text-blue-900"],
+.theme-dark .student-layout-root [class*="text-blue-800"],
+.theme-dark .student-layout-root [class*="text-blue-700"],
+.theme-dark .student-layout-root [class*="text-blue-100"],
+.theme-dark .student-layout-root [class*="text-blue-50"],
+.theme-dark .student-layout-root [class*="text-slate-700"],
+.theme-dark .student-layout-root [class*="text-slate-600"],
+.theme-dark .student-layout-root [class*="text-slate-500"] {
+  color: #cbd5e1 !important;
 }
 
-.theme-dark .bg-white,
-.theme-dark .bg-blue-50,
-.theme-dark .bg-blue-50\/40,
-.theme-dark .bg-blue-100 {
+.theme-dark .student-layout-root [class*="bg-white"],
+.theme-dark .student-layout-root [class*="bg-blue-50"],
+.theme-dark .student-layout-root [class*="bg-sky-50"],
+.theme-dark .student-layout-root [class*="bg-blue-100"] {
   background-color: #111b31 !important;
 }
 
-.theme-dark .border-blue-100,
-.theme-dark .border-blue-200,
-.theme-dark .border-slate-200 {
+.theme-dark .student-layout-root [class*="border-blue-100"],
+.theme-dark .student-layout-root [class*="border-blue-200"],
+.theme-dark .student-layout-root [class*="border-slate-200"],
+.theme-dark .student-layout-root [class*="border-blue-50"] {
   border-color: rgba(96, 165, 250, 0.2) !important;
 }

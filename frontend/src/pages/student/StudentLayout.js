@@ -27,7 +27,7 @@ export default function StudentLayout() {
   };
 
   return (
-    <div className="flex min-h-screen bg-slate-50">
+    <div className="student-layout-root flex min-h-screen bg-sky-50">
       <aside className="hidden md:flex md:w-64 lg:w-72 student-sidebar-panel flex-col fixed h-full" data-testid="student-sidebar">
         <div className="p-6 border-b border-slate-200/60">
           <div className="student-brand-wrap">
@@ -49,7 +49,7 @@ export default function StudentLayout() {
                 data-testid={`student-nav-${item.label.toLowerCase().replace(/\s+/g, '-')}`}
                 className={({ isActive }) =>
                   `student-nav-item flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${isActive
-                    ? 'student-nav-item-active text-indigo-700'
+                    ? 'student-nav-item-active text-sky-700'
                     : 'text-slate-600 hover:bg-white hover:text-slate-900'
                   }`
                 }
@@ -63,7 +63,7 @@ export default function StudentLayout() {
 
         <div className="p-4 border-t border-slate-200/60">
           <div className="student-profile-shell flex items-center gap-3 px-4 py-3 mb-2 rounded-xl">
-            <div className="w-10 h-10 bg-indigo-600 rounded-full flex items-center justify-center text-white text-sm font-medium shadow-sm">
+            <div className="w-10 h-10 bg-sky-700 rounded-full flex items-center justify-center text-white text-sm font-medium shadow-sm">
               {user?.name?.[0] || 'S'}
             </div>
             <div className="flex-1 min-w-0">

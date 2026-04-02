@@ -86,142 +86,343 @@ const QUIZ_BANK = {
   ]
 };
 
+const DOMAIN_PROFILES = {
+  mechanical: {
+    requiredSkills: {
+      technical: ['Drawing Reading', 'Machine Handling', 'Safety Protocols', 'Quality Control'],
+      soft: ['Communication', 'Teamwork', 'Problem Solving']
+    },
+    ratio: { technical: 72, soft: 28 },
+    salaryBand: 'Rs 1.8L - Rs 2.6L',
+    screeningProcess: 'Written test + Technical interview + HR',
+    pastHiringPatterns: 'Strong focus on practical troubleshooting, safe operation, and quality compliance.'
+  },
+  automation: {
+    requiredSkills: {
+      technical: ['PLC Basics', 'Sensors and Actuators', 'Electrical Troubleshooting', 'Computer Basics'],
+      soft: ['Communication', 'Adaptability', 'Collaboration']
+    },
+    ratio: { technical: 68, soft: 32 },
+    salaryBand: 'Rs 2.0L - Rs 2.9L',
+    screeningProcess: 'Online test + Technical interview + HR',
+    pastHiringPatterns: 'Prefers automation fundamentals with structured problem solving and safe practices.'
+  },
+  project: {
+    requiredSkills: {
+      technical: ['Project Scheduling', 'Drawing Reading', 'Documentation', 'Problem Solving'],
+      soft: ['Leadership', 'Communication', 'Stakeholder Management']
+    },
+    ratio: { technical: 60, soft: 40 },
+    salaryBand: 'Rs 2.1L - Rs 3.0L',
+    screeningProcess: 'Aptitude + Group discussion + Technical interview + HR',
+    pastHiringPatterns: 'Looks for ownership, communication clarity, and on-ground execution discipline.'
+  }
+};
+
+function buildIntelligence(domain, companyName, role) {
+  const profile = DOMAIN_PROFILES[domain] || DOMAIN_PROFILES.mechanical;
+  return {
+    requiredSkills: profile.requiredSkills,
+    pastHiringPatterns: profile.pastHiringPatterns,
+    ratio: profile.ratio,
+    salaryBand: profile.salaryBand,
+    screeningProcess: profile.screeningProcess,
+    interviewQuestions: [
+      {
+        type: 'Technical',
+        question: `Which technical fundamentals matter most for the ${role} role?`,
+        answer: 'I focus on core trade knowledge, process basics, and practical application with safety compliance.'
+      },
+      {
+        type: 'Technical',
+        question: 'How do you approach a real production or operations problem?',
+        answer: 'I define the issue, gather data, identify root cause, apply corrective action, and verify outcomes.'
+      },
+      {
+        type: 'Situational',
+        question: 'What will you do when a deadline is tight and quality is at risk?',
+        answer: 'Prioritize critical checks, communicate constraints early, and maintain safety and quality gates.'
+      },
+      {
+        type: 'HR',
+        question: `Why do you want to join ${companyName}?`,
+        answer: 'The role aligns with my preparation and gives the right environment to grow through practical learning.'
+      },
+      {
+        type: 'HR',
+        question: 'How do you prepare consistently for interviews and assignments?',
+        answer: 'I follow a structured daily plan, track weak areas, and improve with focused revisions and mock practice.'
+      }
+    ]
+  };
+}
+
+function buildShortJD(config) {
+  return `Position: ${config.role}\n\nCompany: ${config.company_name}\n\nEligibility: ${config.eligibility}\n\nKey Responsibilities:\n- Execute assigned domain tasks with process discipline and quality focus.\n- Collaborate with cross-functional teams to meet project or production targets.\n- Follow safety, compliance, and reporting standards during operations.\n\nPreferred Skills:\n- Fundamentals relevant to ${config.role}.\n- Problem solving and communication skills.\n- Willingness to learn and adapt to plant or project workflows.`;
+}
+
+function createCompany(config) {
+  return {
+    ...config,
+    shortJD: buildShortJD(config),
+    intelligence: buildIntelligence(config.domain, config.company_name, config.role)
+  };
+}
+
 const COMPANY_INTELLIGENCE = [
-  {
-    id: 'mahindra',
+  createCompany({
+    id: 'hal-ozar',
     domain: 'mechanical',
+    industry: 'Automotive',
+    company_name: 'Hindustan Aeronautics Limited (HAL)',
+    role: 'Management Trainee - Aerospace Manufacturing',
+    date: '2026-04-25',
+    eligibility: 'Mechanical / Aerospace, CGPA >= 7.0',
+    status: 'active',
+    package: '8.5 LPA'
+  }),
+  createCompany({
+    id: 'mahindra-nashik',
+    domain: 'mechanical',
+    industry: 'Automotive',
     company_name: 'Mahindra & Mahindra Ltd.',
     role: 'Graduate Engineer Trainee (Mechanical)',
     date: '2026-04-18',
     eligibility: 'Mechanical / Automobile, CGPA >= 6.5',
     status: 'active',
-    package: '6.2 LPA',
-    intelligence: {
-      requiredSkills: {
-        technical: ['Drawing Reading', 'Machine Handling', 'Safety Protocols', 'Quality Control'],
-        soft: ['Communication', 'Teamwork', 'Problem Solving']
-      },
-      pastHiringPatterns: 'Strong focus on practical troubleshooting and quality compliance in final rounds.',
-      ratio: { technical: 70, soft: 30 },
-      salaryBand: '₹1.8L - ₹2.4L',
-      screeningProcess: 'Written test + Technical interview + HR',
-      interviewQuestions: [
-        { type: 'Technical', question: 'How do you read a simple machining drawing?', answer: 'I check title block, units, views, tolerances, and critical dimensions before planning operations.' },
-        { type: 'Technical', question: 'How will you reduce shop-floor defects?', answer: 'I use Pareto, root-cause analysis, and control checks at high-risk process points.' },
-        { type: 'Situational', question: 'Production target is high but quality is dropping. What will you do?', answer: 'Prioritize safety and critical quality checks, escalate with data, and optimize bottlenecks.' },
-        { type: 'HR', question: 'Why this role?', answer: 'It aligns with my practical manufacturing skills and long-term growth in operations.' },
-        { type: 'HR', question: 'How do you work in teams?', answer: 'I keep communication clear, share updates early, and support common targets.' }
-      ]
-    }
-  },
-  {
-    id: 'bosch',
-    domain: 'automation',
-    company_name: 'Bosch',
-    role: 'Graduate Trainee Engineer',
-    date: '2026-04-28',
-    eligibility: 'Mechanical / E&TC / Electrical, CGPA >= 7.0',
-    status: 'active',
-    package: '7.4 LPA',
-    intelligence: {
-      requiredSkills: {
-        technical: ['PLC Basics', 'Sensors and Actuators', 'Computer Basics', 'Safety Protocols'],
-        soft: ['Communication', 'Adaptability', 'Collaboration']
-      },
-      pastHiringPatterns: 'Prefers automation fundamentals with concise explanation and safe working practices.',
-      ratio: { technical: 65, soft: 35 },
-      salaryBand: '₹2.0L - ₹2.8L',
-      screeningProcess: 'Online test + Group discussion + Technical interview',
-      interviewQuestions: [
-        { type: 'Technical', question: 'Difference between PLC and SCADA?', answer: 'PLC executes control logic, while SCADA supervises, visualizes, and logs operations.' },
-        { type: 'Technical', question: 'How do sensors improve production reliability?', answer: 'They provide real-time input for control actions and prevent unsafe or off-spec operations.' },
-        { type: 'Situational', question: 'How do you debug intermittent automation faults?', answer: 'Check alarms/logs, verify IO wiring and network, isolate module-level failure systematically.' },
-        { type: 'HR', question: 'How do you learn new technical tools?', answer: 'By breaking concepts into modules and practicing quickly with small tasks.' },
-        { type: 'HR', question: 'What is your biggest strength?', answer: 'Structured troubleshooting with clear communication under pressure.' }
-      ]
-    }
-  },
-  {
-    id: 'bajaj-auto',
+    package: '6.2 LPA'
+  }),
+  createCompany({
+    id: 'jindal-saw',
     domain: 'mechanical',
-    company_name: 'Bajaj Auto',
-    role: 'Production Graduate Engineer',
-    date: '2026-05-06',
-    eligibility: 'Mechanical / Automobile, CGPA >= 6.5',
+    industry: 'Engineering',
+    company_name: 'Jindal SAW Ltd.',
+    role: 'Production Engineer - SAW Pipes',
+    date: '2026-05-15',
+    eligibility: 'Mechanical / Metallurgy, CGPA >= 6.5',
     status: 'active',
-    package: '6.8 LPA',
-    intelligence: {
-      requiredSkills: {
-        technical: ['Machine Handling', 'Safety Protocols', 'Trade Practical Skills', 'Problem Solving'],
-        soft: ['Discipline', 'Teamwork', 'Communication']
-      },
-      pastHiringPatterns: 'Checks on-ground readiness, process discipline, and basic quality tools usage.',
-      ratio: { technical: 72, soft: 28 },
-      salaryBand: '₹1.9L - ₹2.6L',
-      screeningProcess: 'Written test + Direct interview',
-      interviewQuestions: [
-        { type: 'Technical', question: 'How do you ensure safe machine startup?', answer: 'Use pre-start checklist, verify guards, and confirm standard parameter settings.' },
-        { type: 'Technical', question: 'How do you handle recurring quality defects?', answer: 'Contain, analyze causes, run corrective action, and monitor for recurrence.' },
-        { type: 'Situational', question: 'If your line is delayed, what is your response?', answer: 'Identify bottleneck, re-sequence practical tasks, and communicate revised timeline.' },
-        { type: 'HR', question: 'Why Bajaj Auto?', answer: 'Strong manufacturing ecosystem and opportunity to grow in production engineering.' },
-        { type: 'HR', question: 'How do you stay disciplined?', answer: 'I follow standard work, track outcomes, and stay punctual for each handover.' }
-      ]
-    }
-  },
-  {
+    package: '5.8 LPA'
+  }),
+  createCompany({
+    id: 'pfizer',
+    domain: 'project',
+    industry: 'Pharma',
+    company_name: 'Pfizer Ltd.',
+    role: 'Quality Analyst - Pharma Operations',
+    date: '2026-06-25',
+    eligibility: 'Chemical / Pharmaceutical, CGPA >= 7.0',
+    status: 'upcoming',
+    package: '7.5 LPA'
+  }),
+  createCompany({
     id: 'siemens',
     domain: 'automation',
+    industry: 'Engineering',
     company_name: 'Siemens Ltd.',
     role: 'Automation Engineer',
     date: '2026-05-10',
     eligibility: 'E&TC / Electrical / Instrumentation, CGPA >= 7.0',
     status: 'active',
-    package: '9.0 LPA',
-    intelligence: {
-      requiredSkills: {
-        technical: ['PLC Basics', 'Drawing Reading', 'Computer Basics', 'Problem Solving'],
-        soft: ['Communication', 'Analytical Thinking', 'Adaptability']
-      },
-      pastHiringPatterns: 'Technical fundamentals first, then scenario-based problem-solving questions.',
-      ratio: { technical: 75, soft: 25 },
-      salaryBand: '₹2.2L - ₹3.0L',
-      screeningProcess: 'Written test + Technical interview',
-      interviewQuestions: [
-        { type: 'Technical', question: 'How does PLC scan cycle impact output?', answer: 'Input read, logic execute, output update loop timing affects responsiveness and stability.' },
-        { type: 'Technical', question: 'How do you read electrical drawings for troubleshooting?', answer: 'Trace power path and control logic from source to actuator using symbols and references.' },
-        { type: 'Situational', question: 'Communication issue between modules: what next?', answer: 'Validate physical layer, protocol settings, and diagnostics before replacing hardware.' },
-        { type: 'HR', question: 'Why automation?', answer: 'I enjoy combining electrical logic and process efficiency improvements.' },
-        { type: 'HR', question: 'How do you approach unknown problems?', answer: 'Hypothesis, test small, verify data, and iterate with documentation.' }
-      ]
-    }
-  },
-  {
-    id: 'lnt',
-    domain: 'project',
-    company_name: 'Larsen & Toubro (L&T)',
-    role: 'Project Engineer Trainee',
+    package: '9.0 LPA'
+  }),
+  createCompany({
+    id: 'bosch',
+    domain: 'automation',
+    industry: 'Automotive',
+    company_name: 'Bosch Ltd.',
+    role: 'R&D Engineer - Automotive Systems',
+    date: '2026-05-12',
+    eligibility: 'Mechanical / E&TC, CGPA >= 7.5',
+    status: 'active',
+    package: '10.2 LPA'
+  }),
+  createCompany({
+    id: 'abb',
+    domain: 'automation',
+    industry: 'Engineering',
+    company_name: 'ABB Ltd.',
+    role: 'Electrical Design Engineer',
+    date: '2026-05-02',
+    eligibility: 'Electrical / Electronics, CGPA >= 7.0',
+    status: 'active',
+    package: '7.8 LPA'
+  }),
+  createCompany({
+    id: 'samsonite-gonde',
+    domain: 'mechanical',
+    industry: 'Engineering',
+    company_name: 'Samsonite South Asia Pvt Ltd',
+    role: 'Industrial Engineer - Manufacturing',
+    date: '2026-05-20',
+    eligibility: 'Mechanical / Production, CGPA >= 6.0',
+    status: 'active',
+    package: '5.0 LPA'
+  }),
+  createCompany({
+    id: 'crompton-greaves',
+    domain: 'automation',
+    industry: 'Engineering',
+    company_name: 'Crompton Greaves Consumer Electricals',
+    role: 'Electrical Engineer',
     date: '2026-05-22',
-    eligibility: 'Mechanical / Civil / Electrical, CGPA >= 7.0',
+    eligibility: 'Electrical / Electronics, CGPA >= 6.5',
+    status: 'active',
+    package: '6.5 LPA'
+  }),
+  createCompany({
+    id: 'ashoka-buildcon',
+    domain: 'project',
+    industry: 'Infrastructure',
+    company_name: 'Ashoka Buildcon Ltd.',
+    role: 'Site Engineer - Infrastructure Projects',
+    date: '2026-05-28',
+    eligibility: 'Civil / Mechanical, CGPA >= 6.0',
+    status: 'active',
+    package: '5.5 LPA'
+  }),
+  createCompany({
+    id: 'msrtc-workshop',
+    domain: 'mechanical',
+    industry: 'Automotive',
+    company_name: 'MSRTC - Regional Workshop, Nashik',
+    role: 'Workshop Engineer',
+    date: '2026-06-12',
+    eligibility: 'Mechanical / Automobile, CGPA >= 6.0',
     status: 'upcoming',
-    package: '8.2 LPA',
-    intelligence: {
-      requiredSkills: {
-        technical: ['Drawing Reading', 'Computer Basics', 'Trade Practical Skills', 'Problem Solving'],
-        soft: ['Leadership', 'Communication', 'Punctuality and Discipline']
-      },
-      pastHiringPatterns: 'Looks for project coordination ability and clear communication with execution discipline.',
-      ratio: { technical: 60, soft: 40 },
-      salaryBand: '₹2.1L - ₹2.9L',
-      screeningProcess: 'Group discussion + Technical interview + HR',
-      interviewQuestions: [
-        { type: 'Technical', question: 'How do you plan work for a short deadline?', answer: 'Break tasks, estimate durations, mark dependencies, and protect critical path items first.' },
-        { type: 'Technical', question: 'Why is documentation important in projects?', answer: 'It preserves decisions, supports coordination, and reduces execution ambiguity.' },
-        { type: 'Situational', question: 'A vendor misses timeline. What do you do?', answer: 'Assess impact, activate alternate plan, and communicate revised schedule proactively.' },
-        { type: 'HR', question: 'How do you manage stakeholders?', answer: 'Set clear expectations, update frequently, and maintain issue logs.' },
-        { type: 'HR', question: 'Tell us about your responsibility style.', answer: 'I take ownership, report status transparently, and close tasks with quality checks.' }
-      ]
-    }
-  }
+    package: '4.2 LPA'
+  }),
+  createCompany({
+    id: 'metalgenesis',
+    domain: 'mechanical',
+    industry: 'Engineering',
+    company_name: 'Metalgenesis Industries Pvt. Ltd.',
+    role: 'CNC Programmer / Machinist',
+    date: '2026-06-14',
+    eligibility: 'Mechanical / Production, CGPA >= 6.0',
+    status: 'upcoming',
+    package: '4.0 LPA'
+  }),
+  createCompany({
+    id: 'ring-plus-aqua',
+    domain: 'mechanical',
+    industry: 'Automotive',
+    company_name: 'Ring Plus Aqua Ltd.',
+    role: 'Design Engineer - Automotive Components',
+    date: '2026-06-05',
+    eligibility: 'Mechanical / Civil, CGPA >= 6.0',
+    status: 'upcoming',
+    package: '4.5 LPA'
+  }),
+  createCompany({
+    id: 'kupfertech',
+    domain: 'automation',
+    industry: 'Engineering',
+    company_name: 'Kupfertech Corporation',
+    role: 'Electrical Systems Engineer',
+    date: '2026-06-18',
+    eligibility: 'Electrical / E&TC, CGPA >= 6.0',
+    status: 'upcoming',
+    package: '4.5 LPA'
+  }),
+  createCompany({
+    id: 'ambar-forge-2',
+    domain: 'mechanical',
+    industry: 'Engineering',
+    company_name: 'Ambar Forge Plant 2',
+    role: 'Forging Process Engineer',
+    date: '2026-06-20',
+    eligibility: 'Mechanical / Metallurgy, CGPA >= 6.0',
+    status: 'upcoming',
+    package: '4.8 LPA'
+  }),
+  createCompany({
+    id: 'efacec-india',
+    domain: 'automation',
+    industry: 'Engineering',
+    company_name: 'Efacec India Pvt. Ltd.',
+    role: 'Transformers Design Engineer',
+    date: '2026-06-22',
+    eligibility: 'Electrical / Electronics, CGPA >= 6.5',
+    status: 'upcoming',
+    package: '5.5 LPA'
+  }),
+  createCompany({
+    id: 'cipla',
+    domain: 'project',
+    industry: 'Pharma',
+    company_name: 'Cipla Ltd.',
+    role: 'Production Executive - Pharma Manufacturing',
+    date: '2026-06-28',
+    eligibility: 'Chemical / Pharmaceutical, CGPA >= 7.0',
+    status: 'upcoming',
+    package: '6.8 LPA'
+  }),
+  createCompany({
+    id: 'sahyadri-farms',
+    domain: 'project',
+    industry: 'Pharma',
+    company_name: 'Sahyadri Farms',
+    role: 'Agri-Processing Engineer',
+    date: '2026-07-01',
+    eligibility: 'Mechanical / Agricultural, CGPA >= 6.0',
+    status: 'upcoming',
+    package: '4.2 LPA'
+  }),
+  createCompany({
+    id: 'sagar-industries-distilleries',
+    domain: 'project',
+    industry: 'Engineering',
+    company_name: 'Sagar Industries & Distilleries Ltd.',
+    role: 'Plant Operations Engineer',
+    date: '2026-07-05',
+    eligibility: 'Mechanical / Chemical, CGPA >= 6.0',
+    status: 'upcoming',
+    package: '4.5 LPA'
+  }),
+  createCompany({
+    id: 'capgemini',
+    domain: 'automation',
+    industry: 'IT',
+    company_name: 'Capgemini',
+    role: 'Associate Consultant - Technology',
+    date: '2026-04-20',
+    eligibility: 'CS / IT / E&TC, CGPA >= 6.5',
+    status: 'active',
+    package: '7.5 LPA'
+  }),
+  createCompany({
+    id: 'infosys',
+    domain: 'automation',
+    industry: 'IT',
+    company_name: 'Infosys',
+    role: 'Systems Engineer',
+    date: '2026-04-22',
+    eligibility: 'All branches, CGPA >= 6.0',
+    status: 'active',
+    package: '6.5 LPA'
+  }),
+  createCompany({
+    id: 'dreamsoft-it-solutions',
+    domain: 'automation',
+    industry: 'IT',
+    company_name: 'DreamSoft IT Solutions Pvt. Ltd.',
+    role: 'Junior Software Developer',
+    date: '2026-07-08',
+    eligibility: 'CS / IT, CGPA >= 6.0',
+    status: 'upcoming',
+    package: '4.0 LPA'
+  }),
+  createCompany({
+    id: 'finiq-consulting',
+    domain: 'automation',
+    industry: 'IT',
+    company_name: 'Finiq Consulting India Pvt Ltd',
+    role: 'Business Analyst',
+    date: '2026-07-10',
+    eligibility: 'CS / IT / MBA, CGPA >= 6.5',
+    status: 'upcoming',
+    package: '5.0 LPA'
+  })
 ];
 
 const RESOURCE_LIBRARY = {
@@ -258,7 +459,19 @@ function getInitialRoadmaps() {
 function getInitialCompanies() {
   try {
     const raw = localStorage.getItem('placementhub.companies');
-    return raw ? JSON.parse(raw) : COMPANY_INTELLIGENCE;
+    if (!raw) return COMPANY_INTELLIGENCE;
+
+    const saved = JSON.parse(raw);
+    if (!Array.isArray(saved)) return COMPANY_INTELLIGENCE;
+
+    const savedById = new Map(saved.map((company) => [company.id, company]));
+    const merged = COMPANY_INTELLIGENCE.map((company) => {
+      const savedCompany = savedById.get(company.id);
+      return savedCompany ? { ...company, ...savedCompany } : company;
+    });
+
+    const extraCustomCompanies = saved.filter((company) => !merged.some((base) => base.id === company.id));
+    return [...merged, ...extraCustomCompanies];
   } catch (_err) {
     return COMPANY_INTELLIGENCE;
   }
@@ -512,6 +725,11 @@ export function RoadmapProvider({ children }) {
       eligibility: companyInput.eligibility,
       status: companyInput.status || 'active',
       package: companyInput.package || 'Not Disclosed',
+      shortJD: companyInput.shortJD || buildShortJD({
+        role: companyInput.role,
+        company_name: companyInput.company_name,
+        eligibility: companyInput.eligibility
+      }),
       jdFileName: companyInput.jdFileName || '',
       jdFileType: companyInput.jdFileType || '',
       jdFileSize: companyInput.jdFileSize || 0,

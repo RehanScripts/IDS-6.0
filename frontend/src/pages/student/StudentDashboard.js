@@ -1,5 +1,5 @@
 import React from 'react';
-import { TrendingUp, Map, Target, ArrowRight } from 'lucide-react';
+import { TrendingUp, Map, Target, ArrowRight, Building2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useRoadmaps } from '../../contexts/RoadmapContext';
 
@@ -36,11 +36,6 @@ export default function StudentDashboard() {
   };
 
   const nearestDaysLeft = roadmaps.length ? Math.min(...roadmaps.map((r) => r.daysRemaining)) : 0;
-
-  const activeCompany = companies[currentSlide] || {};
-  const industryImg = INDUSTRY_IMAGES[activeCompany.industry] || INDUSTRY_IMAGES.Engineering;
-  const industryGrad = INDUSTRY_GRADIENTS[activeCompany.industry] || INDUSTRY_GRADIENTS.Engineering;
-  const industryTag = INDUSTRY_TAGS[activeCompany.industry] || '';
 
   return (
     <div className="p-6 md:p-8" data-testid="student-dashboard">
@@ -95,7 +90,7 @@ export default function StudentDashboard() {
           >
             <div className="flex items-start justify-between mb-4">
               <div className="w-12 h-12 bg-indigo-50 rounded-lg flex items-center justify-center">
-                <Icon className="w-6 h-6 text-indigo-600" />
+                <Building2 className="w-6 h-6 text-indigo-600" />
               </div>
             </div>
             <h3 className="text-lg font-medium text-slate-900 mb-1">{company.company_name}</h3>

@@ -761,6 +761,11 @@ export function RoadmapProvider({ children }) {
     return company;
   };
 
+  const removeCompanyAnnouncement = (companyId) => {
+    if (!companyId) return;
+    setCompanies((prev) => prev.filter((company) => company.id !== companyId));
+  };
+
   const dashboardStats = useMemo(() => {
     const activeRoadmap = roadmaps.length;
     const allDays = roadmaps.flatMap((r) => r.dayPlans || []);
@@ -786,7 +791,8 @@ export function RoadmapProvider({ children }) {
         getCompanyQuiz,
         generateRoadmapFromAssessment,
         toggleRoadmapDayCompletion,
-        addCompanyAnnouncement
+        addCompanyAnnouncement,
+        removeCompanyAnnouncement
       }}
     >
       {children}

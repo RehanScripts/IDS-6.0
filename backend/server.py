@@ -1,5 +1,6 @@
 from dotenv import load_dotenv
 from pathlib import Path
+import asyncio
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -485,8 +486,14 @@ logger = logging.getLogger(__name__)
 
 @app.on_event("startup")
 async def startup_db():
-    if not db:
+    if db is None:
         print("MongoDB is not connected. Skipping DB initialization.")
+        return
+
+    try:
+        await asyncio.wait_for(client.admin.command("ping"), timeout=2)
+    except Exception as err:
+        print(f"MongoDB is unavailable. Skipping DB initialization. Error: {err}")
         return
 
     await db.users.create_index("email", unique=True)
@@ -550,8 +557,9 @@ async def startup_db():
         if not exists:
             await db.companies.insert_one(company)
     
-    Path("/app/memory").mkdir(exist_ok=True)
-    with open("/app/memory/test_credentials.md", "w") as f:
+    memory_dir = ROOT_DIR.parent / "memory"
+    memory_dir.mkdir(exist_ok=True)
+    with open(memory_dir / "test_credentials.md", "w") as f:
         f.write("# Test Credentials\n\n")
         f.write("## TPO Account\n")
         f.write(f"- Email: {admin_email}\n")

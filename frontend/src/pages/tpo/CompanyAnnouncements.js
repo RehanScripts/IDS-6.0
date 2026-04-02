@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { FileUp, Plus, Upload, X } from 'lucide-react';
+import { FileUp, Plus, Trash2, Upload, X } from 'lucide-react';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '../../components/ui/sheet';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
@@ -40,7 +40,7 @@ function formatBytes(bytes) {
 }
 
 export default function CompanyAnnouncements() {
-  const { companies, addCompanyAnnouncement } = useRoadmaps();
+  const { companies, addCompanyAnnouncement, removeCompanyAnnouncement } = useRoadmaps();
   const [selectedCompany, setSelectedCompany] = useState(null);
   const [loading, setLoading] = useState(true);
   const [showAddDialog, setShowAddDialog] = useState(false);
@@ -128,6 +128,18 @@ export default function CompanyAnnouncements() {
     toast.success('Company added (mock)');
     setShowAddDialog(false);
     resetAddCompanyState();
+  };
+
+  const handleRemoveCompany = (company) => {
+    if (!company?.id) return;
+    const confirmed = window.confirm(`Remove ${company.company_name}?`);
+    if (!confirmed) return;
+
+    removeCompanyAnnouncement(company.id);
+    if (selectedCompany?.id === company.id) {
+      setSelectedCompany(null);
+    }
+    toast.success('Company removed');
   };
 
   if (loading) {
@@ -282,6 +294,7 @@ export default function CompanyAnnouncements() {
               <th className="text-left py-4 px-6 text-xs uppercase tracking-wider font-semibold text-slate-500">Date</th>
               <th className="text-left py-4 px-6 text-xs uppercase tracking-wider font-semibold text-slate-500">Eligibility</th>
               <th className="text-left py-4 px-6 text-xs uppercase tracking-wider font-semibold text-slate-500">Status</th>
+              <th className="text-right py-4 px-6 text-xs uppercase tracking-wider font-semibold text-slate-500">Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -302,6 +315,20 @@ export default function CompanyAnnouncements() {
                   }`}>
                     {company.status}
                   </span>
+                </td>
+                <td className="py-4 px-6 text-right">
+                  <Button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleRemoveCompany(company);
+                    }}
+                    variant="outline"
+                    className="h-8 px-2 text-rose-600 border-rose-200 hover:bg-rose-50 hover:text-rose-700"
+                    data-testid={`remove-company-button-${idx}`}
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
                 </td>
               </tr>
             ))}
@@ -351,6 +378,19 @@ export default function CompanyAnnouncements() {
               <div>
                 <p className="text-xs uppercase tracking-wider font-semibold text-slate-400 mb-2">Students Applied</p>
                 <p className="text-sm text-slate-600">15 students have applied for this position</p>
+              </div>
+
+              <div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => handleRemoveCompany(selectedCompany)}
+                  className="w-full border-rose-200 text-rose-600 hover:bg-rose-50 hover:text-rose-700"
+                  data-testid="remove-selected-company-button"
+                >
+                  <Trash2 className="w-4 h-4 mr-2" />
+                  Remove Company
+                </Button>
               </div>
 
               {selectedCompany.jdDataUrl && (

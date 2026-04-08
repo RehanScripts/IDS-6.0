@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import axios from 'axios';
 
 const AuthContext = createContext(null);
+const AUTH_STORAGE_KEY = 'placementhub_user';
 
 export const useAuth = () => {
   const context = useContext(AuthContext);
@@ -25,7 +25,16 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
 
   const checkAuth = async () => {
-    // Authentication disabled for development - skip API call
+    // Keep development auth state between refreshes.
+    const savedUser = localStorage.getItem(AUTH_STORAGE_KEY);
+    if (savedUser) {
+      try {
+        setUser(JSON.parse(savedUser));
+      } catch (error) {
+        localStorage.removeItem(AUTH_STORAGE_KEY);
+        setUser(null);
+      }
+    }
     setLoading(false);
   };
 
@@ -46,10 +55,11 @@ export const AuthProvider = ({ children }) => {
         email: email,
         name: role === 'tpo' ? 'TPO Admin' : 'Student User',
         role: role,
-        branch: 'CSE'
+        branch: role === 'student' ? 'CSE' : null
       };
       
       setUser(mockUser);
+      localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(mockUser));
       return { success: true, data: mockUser };
     } catch (error) {
       return { success: false, error: 'Login failed' };
@@ -64,10 +74,11 @@ export const AuthProvider = ({ children }) => {
         email: email,
         name: name,
         role: role,
-        branch: branch
+        branch: role === 'student' ? branch : null
       };
       
       setUser(mockUser);
+      localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(mockUser));
       return { success: true, data: mockUser };
     } catch (error) {
       return { success: false, error: 'Registration failed' };
@@ -76,7 +87,8 @@ export const AuthProvider = ({ children }) => {
 
   const logout = async () => {
     // Mock logout
-    setUser(false);
+    localStorage.removeItem(AUTH_STORAGE_KEY);
+    setUser(null);
   };
 
   return (

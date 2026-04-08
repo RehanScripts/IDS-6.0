@@ -1,10 +1,12 @@
 import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { AuthProvider } from './contexts/AuthContext';
+import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { RoadmapProvider } from './contexts/RoadmapContext';
 import { Toaster } from './components/ui/sonner';
 import ProtectedRoute from './components/ProtectedRoute';
+import LandingPage from './pages/LandingPage';
 import LoginPage from './pages/LoginPage';
+import RegisterPage from './pages/RegisterPage';
 import TPOLayout from './pages/tpo/TPOLayout';
 import TPODashboard from './pages/tpo/TPODashboard';
 import CompanyAnnouncements from './pages/tpo/CompanyAnnouncements';
@@ -21,6 +23,24 @@ import Progress from './pages/student/Progress';
 import Profile from './pages/student/Profile';
 import './App.css';
 
+function RootRoute() {
+  const { user, loading } = useAuth();
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50">
+        <div className="w-12 h-12 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <LandingPage />;
+  }
+
+  return <Navigate to={user.role === 'tpo' ? '/tpo/dashboard' : '/student/dashboard'} replace />;
+}
+
 function App() {
   return (
     <AuthProvider>
@@ -28,10 +48,12 @@ function App() {
         <BrowserRouter>
           <Routes>
             <Route path="/login" element={<LoginPage />} />
-            <Route path="/" element={<Navigate to="/student/dashboard" replace />} />
+            <Route path="/register" element={<RegisterPage />} />
+            <Route path="/" element={<RootRoute />} />
             <Route path="/assessment" element={<Navigate to="/student/assessment" replace />} />
             <Route path="/roadmaps" element={<Navigate to="/student/roadmaps" replace />} />
             <Route path="/progress" element={<Navigate to="/student/progress" replace />} />
+            <Route path="*" element={<Navigate to="/" replace />} />
           
             <Route
               path="/tpo"

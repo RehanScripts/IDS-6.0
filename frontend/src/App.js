@@ -53,7 +53,6 @@ function App() {
             <Route path="/assessment" element={<Navigate to="/student/assessment" replace />} />
             <Route path="/roadmaps" element={<Navigate to="/student/roadmaps" replace />} />
             <Route path="/progress" element={<Navigate to="/student/progress" replace />} />
-            <Route path="*" element={<Navigate to="/" replace />} />
           
             <Route
               path="/tpo"
@@ -88,6 +87,8 @@ function App() {
               <Route path="progress" element={<Progress />} />
               <Route path="profile" element={<Profile />} />
             </Route>
+
+            <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
           <Toaster position="top-right" />
         </BrowserRouter>

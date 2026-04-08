@@ -25,7 +25,6 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
 
   const checkAuth = async () => {
-    // Keep development auth state between refreshes.
     const savedUser = localStorage.getItem(AUTH_STORAGE_KEY);
     if (savedUser) {
       try {
@@ -86,7 +85,6 @@ export const AuthProvider = ({ children }) => {
   };
 
   const logout = async () => {
-    // Mock logout
     localStorage.removeItem(AUTH_STORAGE_KEY);
     setUser(null);
   };

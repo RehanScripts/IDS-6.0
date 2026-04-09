@@ -760,12 +760,15 @@ export function RoadmapProvider({ children }) {
 
     const readinessScore = computeReadiness(assessment);
 
-    const skillGaps = company.intelligence.requiredSkills.technical.filter((skill) => {
+    const baselineSkillGaps = company.intelligence.requiredSkills.technical.filter((skill) => {
       const test = normalize(skill);
       const toolText = normalize(assessment.toolsKnown || '');
       const tradeText = normalize(assessment.tradeSkill || assessment.trade || '');
       return !(toolText.includes(test.split(' ')[0]) || tradeText.includes(test.split(' ')[0]));
     });
+
+    const miniQuizGaps = Array.isArray(assessment.extraSkillGaps) ? assessment.extraSkillGaps : [];
+    const skillGaps = [...new Set([...baselineSkillGaps, ...miniQuizGaps])];
 
     const strengths = company.intelligence.requiredSkills.technical.filter((s) => !skillGaps.includes(s));
     const { dayPlans, mode, warnings, totalDays, totalHours } = buildDynamicDayPlans(company, assessment, skillGaps);

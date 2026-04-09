@@ -43,6 +43,8 @@ const INDUSTRY_TAGS = {
 };
 
 const FLAGSHIP_COMPANY_IDS = [
+  'klingelnberg',
+  'seiton',
   'hal-ozar',
   'mahindra-nashik',
   'siemens',
@@ -53,6 +55,8 @@ const FLAGSHIP_COMPANY_IDS = [
   'capgemini',
   'infosys'
 ];
+
+const MANDATORY_AD_IDS = ['klingelnberg', 'seiton'];
 
 function shuffleList(items) {
   return [...items].sort(() => Math.random() - 0.5);
@@ -76,6 +80,10 @@ export default function StudentDashboard() {
   };
 
   const openCompanyJD = (company) => {
+    if (company?.jdDataUrl) {
+      window.open(company.jdDataUrl, '_blank', 'noopener,noreferrer');
+      return;
+    }
     setJdCompany(company);
   };
 
@@ -83,12 +91,18 @@ export default function StudentDashboard() {
     const upcoming = companies.filter((company) => company.status === 'upcoming');
     const withFallback = upcoming.length >= 10 ? upcoming : [...upcoming, ...companies.filter((company) => company.status !== 'upcoming')];
 
-    const flagship = withFallback.filter((company) => FLAGSHIP_COMPANY_IDS.includes(company.id));
+    const mandatoryPinned = MANDATORY_AD_IDS
+      .map((id) => withFallback.find((company) => company.id === id))
+      .filter(Boolean);
+
+    const mandatoryIds = new Set(mandatoryPinned.map((company) => company.id));
+    const flagship = withFallback.filter((company) => FLAGSHIP_COMPANY_IDS.includes(company.id) && !mandatoryIds.has(company.id));
     const pinned = shuffleList(flagship).slice(0, Math.min(3, withFallback.length));
-    const pinnedIds = new Set(pinned.map((company) => company.id));
+    const pinnedWithMandatory = [...mandatoryPinned, ...pinned];
+    const pinnedIds = new Set(pinnedWithMandatory.map((company) => company.id));
     const remaining = withFallback.filter((company) => !pinnedIds.has(company.id));
 
-    return shuffleList([...pinned, ...shuffleList(remaining).slice(0, Math.max(0, 10 - pinned.length))]).slice(0, 10);
+    return [...pinnedWithMandatory, ...shuffleList(remaining).slice(0, Math.max(0, 10 - pinnedWithMandatory.length))].slice(0, 10);
   }, [companies]);
 
   useEffect(() => {
@@ -101,7 +115,7 @@ export default function StudentDashboard() {
     const slider = setInterval(() => {
       setSlideDirection('next');
       setActiveSlide((current) => (current + 1) % upcomingCompanies.length);
-    }, 4500);
+    }, 6200);
 
     return () => clearInterval(slider);
   }, [upcomingCompanies.length]);
@@ -121,7 +135,7 @@ export default function StudentDashboard() {
   };
 
   return (
-    <div className="p-6 md:p-8 bg-blue-50/40 min-h-screen" data-testid="student-dashboard">
+    <div className="student-dashboard-root p-6 md:p-8 bg-sky-50 min-h-screen" data-testid="student-dashboard">
       <div className="mb-8">
         <h1 className="text-4xl font-semibold text-blue-950 tracking-tight" style={{fontFamily: 'Outfit'}}>Dashboard</h1>
         <p className="text-blue-800/80 mt-2">Track your placement preparation progress</p>
@@ -131,10 +145,10 @@ export default function StudentDashboard() {
         <div className="metric-card metric-card-readiness rounded-2xl p-6 cursor-pointer hover:-translate-y-1 active:scale-[0.98]" data-testid="stat-card-readiness">
           <div className="flex items-center justify-between mb-4">
             <div className="metric-icon-shell">
-              <TrendingUp className="w-6 h-6 text-indigo-700" />
+              <TrendingUp className="w-6 h-6 text-sky-700" />
             </div>
           </div>
-          <p className="text-xs uppercase tracking-[0.2em] font-semibold text-slate-500 mb-1">Readiness Score</p>
+          <p className="text-xs uppercase tracking-[0.2em] font-semibold text-sky-700 mb-1">Readiness Score</p>
           <p className="text-3xl font-semibold text-blue-950">{dashboardStats.readiness_score || 0}%</p>
           <p className="text-xs text-blue-800/70 mt-2">Your interview confidence indicator</p>
         </div>
@@ -142,10 +156,10 @@ export default function StudentDashboard() {
         <div className="metric-card metric-card-roadmap rounded-2xl p-6 cursor-pointer hover:-translate-y-1 active:scale-[0.98]" data-testid="stat-card-roadmap">
           <div className="flex items-center justify-between mb-4">
             <div className="metric-icon-shell">
-              <Map className="w-6 h-6 text-indigo-700" />
+              <Map className="w-6 h-6 text-sky-700" />
             </div>
           </div>
-          <p className="text-xs uppercase tracking-[0.2em] font-semibold text-slate-500 mb-1">Active Roadmap</p>
+          <p className="text-xs uppercase tracking-[0.2em] font-semibold text-sky-700 mb-1">Active Roadmap</p>
           <p className="text-3xl font-semibold text-blue-950">{dashboardStats.active_roadmap || 0}</p>
           <p className="text-xs text-blue-800/70 mt-2">Your current structured preparation plans</p>
         </div>
@@ -153,10 +167,10 @@ export default function StudentDashboard() {
         <div className="metric-card metric-card-progress rounded-2xl p-6 cursor-pointer hover:-translate-y-1 active:scale-[0.98]" data-testid="stat-card-progress">
           <div className="flex items-center justify-between mb-4">
             <div className="metric-icon-shell">
-              <Target className="w-6 h-6 text-indigo-700" />
+              <Target className="w-6 h-6 text-sky-700" />
             </div>
           </div>
-          <p className="text-xs uppercase tracking-[0.2em] font-semibold text-slate-500 mb-1">Progress %</p>
+          <p className="text-xs uppercase tracking-[0.2em] font-semibold text-sky-700 mb-1">Progress %</p>
           <p className="text-3xl font-semibold text-blue-950">{dashboardStats.progress_percentage || 0}%</p>
           <p className="text-xs text-blue-800/70 mt-2">Nearest target in {nearestDaysLeft} days</p>
         </div>
@@ -201,7 +215,7 @@ export default function StudentDashboard() {
                   onClick={() => openAssessment(highlighted.id)}
                   className="inline-flex items-center gap-2 bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-blue-800 transition-colors active:scale-[0.97]"
                 >
-                  Apply Now
+                  Generate Roadmap
                   <ArrowRight className="w-4 h-4" />
                 </button>
               </div>
@@ -254,7 +268,7 @@ export default function StudentDashboard() {
                 data-testid={`prepare-button-${idx}`}
                 className="w-full bg-blue-700 text-white py-2 rounded-lg text-sm font-medium hover:bg-blue-800 transition-colors shadow-sm flex items-center justify-center gap-2 active:scale-[0.97]"
               >
-                Apply Now
+                Generate Roadmap
                 <ArrowRight className="w-4 h-4" />
               </button>
               <button

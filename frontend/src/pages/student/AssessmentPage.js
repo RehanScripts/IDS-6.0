@@ -19,6 +19,49 @@ const LOADING_MESSAGES = [
   'Building your personalized roadmap...'
 ];
 
+const MINI_QUIZ_BANK = {
+  klingelnberg: [
+    { skill: 'Data Structures', question: 'Which structure is best for implementing LRU cache efficiently?', options: ['Array + sort', 'HashMap + Doubly Linked List', 'Queue only', 'Stack only'], correctIndex: 1 },
+    { skill: 'JavaScript/TypeScript', question: 'What is the main benefit of TypeScript in large projects?', options: ['Faster runtime', 'Static type safety and maintainability', 'Removes need for tests', 'Smaller bundles always'], correctIndex: 1 },
+    { skill: 'REST APIs', question: 'Which method is commonly used for partial updates?', options: ['PUT', 'PATCH', 'POST', 'GET'], correctIndex: 1 },
+    { skill: 'SQL', question: 'Which index generally improves frequent WHERE lookups?', options: ['No index', 'B-Tree index on filtered column', 'Only text index', 'Composite index on random columns only'], correctIndex: 1 },
+    { skill: 'Debugging', question: 'Best first action when endpoint response time doubles unexpectedly?', options: ['Rebuild UI', 'Inspect logs/metrics and trace slow dependencies', 'Disable auth', 'Rollback database schema'], correctIndex: 1 }
+  ],
+  seiton: [
+    { skill: 'OOP Fundamentals', question: 'Encapsulation primarily helps by:', options: ['Hiding implementation details', 'Increasing inheritance depth', 'Removing constructors', 'Avoiding interfaces'], correctIndex: 0 },
+    { skill: 'Git Workflow', question: 'What is the safest habit before merging a feature branch?', options: ['Force push directly', 'Run tests and resolve conflicts', 'Delete main branch', 'Skip code review'], correctIndex: 1 },
+    { skill: 'Backend API Basics', question: 'Which status code is best for unauthorized access?', options: ['200', '201', '401', '500'], correctIndex: 2 },
+    { skill: 'Testing Fundamentals', question: 'Unit tests should mainly validate:', options: ['Only UI color', 'Small isolated logic behavior', 'Deployment scripts only', 'Browser cache'], correctIndex: 1 },
+    { skill: 'Database CRUD', question: 'Which SQL command updates existing rows?', options: ['CREATE', 'INSERT', 'UPDATE', 'SELECT'], correctIndex: 2 }
+  ],
+  automation: [
+    { skill: 'PLC Basics', question: 'In PLC cycle, what generally executes after reading inputs?', options: ['Alarm reset', 'Program logic scan', 'Output freeze', 'Database write'], correctIndex: 1 },
+    { skill: 'Electrical Troubleshooting', question: 'First check during panel fault isolation?', options: ['Paint quality', 'Power supply and protection status', 'Operator attendance', 'Cable color only'], correctIndex: 1 },
+    { skill: 'Sensors and Actuators', question: 'A proximity sensor is mainly used to detect:', options: ['Temperature', 'Object presence', 'Salary data', 'Camera focus'], correctIndex: 1 },
+    { skill: 'Computer Basics', question: 'Most useful format for traceable maintenance logs?', options: ['Verbal updates only', 'Time-stamped digital records', 'Sticky notes only', 'No logs'], correctIndex: 1 },
+    { skill: 'Problem Solving', question: 'Best practice for recurring machine fault?', options: ['Ignore if temporary', 'Root-cause analysis with corrective action', 'Replace entire line immediately', 'Random reset'], correctIndex: 1 }
+  ],
+  mechanical: [
+    { skill: 'Drawing Reading', question: 'Which drawing element defines allowable dimensional variation?', options: ['Legend', 'Tolerance', 'Grid', 'Title only'], correctIndex: 1 },
+    { skill: 'Machine Handling', question: 'Before machine startup you should:', options: ['Skip checklist', 'Verify guards and settings', 'Increase speed directly', 'Call HR'], correctIndex: 1 },
+    { skill: 'Safety Protocols', question: 'LOTO process is used to:', options: ['Speed up line', 'Secure hazardous energy before maintenance', 'Track attendance', 'Label tools'], correctIndex: 1 },
+    { skill: 'Quality Control', question: 'Which method helps prioritize frequent defect categories?', options: ['Pie chart only', 'Pareto analysis', 'Waterfall', 'Flowchart only'], correctIndex: 1 },
+    { skill: 'Problem Solving', question: 'Most effective way to reduce repeated defects?', options: ['Bypass inspection', 'Use root cause and preventive controls', 'Ship faster', 'Manual rework only'], correctIndex: 1 }
+  ],
+  project: [
+    { skill: 'Project Scheduling', question: 'Critical path delays directly affect:', options: ['Team snacks', 'Project completion date', 'Resume length', 'Hiring ratio'], correctIndex: 1 },
+    { skill: 'Documentation', question: 'What is most important in project documentation?', options: ['Fancy formatting', 'Traceable decisions and updates', 'Only signatures', 'No versioning'], correctIndex: 1 },
+    { skill: 'Stakeholder Management', question: 'Best communication style during risk escalation?', options: ['Delayed and vague', 'Timely, clear, evidence-backed', 'Only verbal', 'Only after closure'], correctIndex: 1 },
+    { skill: 'Problem Solving', question: 'When vendor misses timeline, first step is:', options: ['Ignore', 'Assess impact and re-plan dependencies', 'Stop project', 'Switch domain'], correctIndex: 1 },
+    { skill: 'Leadership', question: 'Good team leadership in execution means:', options: ['Micromanage every task', 'Set clarity, remove blockers, track outcomes', 'Avoid ownership', 'No reviews'], correctIndex: 1 }
+  ]
+};
+
+function getMiniQuiz(company) {
+  if (!company) return [];
+  return MINI_QUIZ_BANK[company.id] || MINI_QUIZ_BANK[company.domain] || MINI_QUIZ_BANK.mechanical;
+}
+
 function modeLabel(totalDays) {
   if (totalDays <= 3) return '🔥 Crash';
   if (totalDays <= 7) return '⚡ Intensive';
@@ -88,10 +131,13 @@ export default function AssessmentPage() {
   const [loadingMsgIndex, setLoadingMsgIndex] = useState(0);
   const [mcqResult, setMcqResult] = useState(null);
   const [mcqIndex, setMcqIndex] = useState(0);
+  const [miniAnswers, setMiniAnswers] = useState({});
+  const [miniQIndex, setMiniQIndex] = useState(0);
 
   const companyId = searchParams.get('company') || companies[0]?.id;
   const selectedCompany = companies.find((c) => c.id === companyId) || companies[0];
   const quiz = getCompanyQuiz(selectedCompany?.id);
+  const miniQuiz = useMemo(() => getMiniQuiz(selectedCompany), [selectedCompany]);
 
   useEffect(() => {
     if (!selectedCompany) {
@@ -105,6 +151,12 @@ export default function AssessmentPage() {
     }
   }, [step, selectedCompany?.id]);
 
+  useEffect(() => {
+    if (step === 7) {
+      setMiniQIndex(0);
+    }
+  }, [step, selectedCompany?.id]);
+
   const prepDaysRaw = useMemo(() => {
     if (form.roadmapDurationMode !== 'interview-date' || !form.interviewDate) return 0;
     return daysBetween(form.todayDate, form.interviewDate);
@@ -115,7 +167,51 @@ export default function AssessmentPage() {
     : (form.interviewDate ? Math.max(1, prepDaysRaw) : 0);
   const totalHours = totalDays > 0 ? Number((totalDays * Number(form.hoursPerDay || 0)).toFixed(1)) : 0;
 
-  const progressPct = Math.round((step / 6) * 100);
+  const progressPct = Math.round((step / 7) * 100);
+
+  const miniInsights = useMemo(() => {
+    if (!miniQuiz.length) return null;
+
+    const answeredCount = miniQuiz.filter((_, idx) => miniAnswers[idx] != null).length;
+    const allAnswered = answeredCount === miniQuiz.length;
+
+    if (!allAnswered) {
+      return {
+        answeredCount,
+        allAnswered: false,
+        score: 0,
+        scorePct: 0,
+        skillGaps: []
+      };
+    }
+
+    const skillMissMap = {};
+    let correct = 0;
+
+    miniQuiz.forEach((q, idx) => {
+      const isCorrect = miniAnswers[idx] === q.correctIndex;
+      if (isCorrect) {
+        correct += 1;
+      } else {
+        skillMissMap[q.skill] = (skillMissMap[q.skill] || 0) + 1;
+      }
+    });
+
+    const skillGaps = Object.keys(skillMissMap).sort((a, b) => skillMissMap[b] - skillMissMap[a]);
+    return {
+      answeredCount,
+      allAnswered: true,
+      score: correct,
+      scorePct: Math.round((correct / miniQuiz.length) * 100),
+      skillGaps
+    };
+  }, [miniAnswers, miniQuiz]);
+
+  const readinessPreview = useMemo(() => {
+    const baseScore = quiz.length ? Math.round((quiz.reduce((acc, q, idx) => (form.mcqAnswers[idx] === q.correctIndex ? acc + 1 : acc), 0) / quiz.length) * 100) : 0;
+    const miniScore = miniInsights?.scorePct || 0;
+    return Math.round(baseScore * 0.55 + miniScore * 0.45);
+  }, [form.mcqAnswers, miniInsights?.scorePct, quiz]);
 
   useEffect(() => {
     if (!loadingPhase) return undefined;
@@ -160,8 +256,12 @@ export default function AssessmentPage() {
       return quiz.length === 5 && quiz.every((_, idx) => form.mcqAnswers[idx] != null);
     }
 
+    if (step === 7) {
+      return miniQuiz.length > 0 && miniQuiz.every((_, idx) => miniAnswers[idx] != null);
+    }
+
     return false;
-  }, [step, form, quiz]);
+  }, [step, form, quiz, miniQuiz, miniAnswers]);
 
   const setField = (key, value) => {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -189,10 +289,16 @@ export default function AssessmentPage() {
     const mcqScore = quiz.reduce((acc, q, idx) => (form.mcqAnswers[idx] === q.correctIndex ? acc + 1 : acc), 0);
     setMcqResult(mcqScore);
 
+    const extraSkillGaps = miniInsights?.skillGaps || [];
+
     const roadmap = generateRoadmapFromAssessment(selectedCompany.id, {
       ...form,
       mcqScore,
       mcqTotal: 5,
+      miniQuizScore: miniInsights?.score || 0,
+      miniQuizTotal: miniQuiz.length,
+      miniQuizReadiness: readinessPreview,
+      extraSkillGaps,
       prepDaysRaw,
       totalDays: Math.max(1, totalDays),
       totalHours,
@@ -229,7 +335,7 @@ export default function AssessmentPage() {
         <div className="bg-white border border-slate-200 rounded-xl p-5 md:p-6 shadow-sm mb-4">
           <div className="flex items-center justify-between gap-3 mb-3">
             <h1 className="text-2xl md:text-3xl font-semibold text-slate-900" style={{ fontFamily: 'Outfit' }}>5-Minute Self-Assessment</h1>
-            <span className="text-sm text-slate-600">Step {step} of 6</span>
+            <span className="text-sm text-slate-600">Step {step} of 7</span>
           </div>
           <p className="text-sm text-slate-600 mb-3">Target Company: <span className="font-medium text-slate-900">{selectedCompany.company_name}</span></p>
           <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
@@ -516,6 +622,84 @@ export default function AssessmentPage() {
                 )}
               </div>
             )}
+
+            {step === 7 && (
+              <div className="space-y-5">
+                <div className="rounded-xl border border-indigo-200 bg-gradient-to-r from-indigo-50 via-sky-50 to-blue-50 p-4">
+                  <p className="text-xs uppercase tracking-[0.16em] text-indigo-700 font-semibold mb-1">Skill Arena Mini Quiz</p>
+                  <h3 className="text-lg font-semibold text-slate-900" style={{ fontFamily: 'Outfit' }}>Final Skill Check for {selectedCompany.company_name}</h3>
+                  <p className="text-sm text-slate-600 mt-1">Gamified quiz to identify your job-specific weak areas before roadmap generation.</p>
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <p className="text-sm text-slate-600">Question {miniQIndex + 1} of {miniQuiz.length}</p>
+                  <div className="w-40 h-2 bg-slate-100 rounded-full overflow-hidden">
+                    <div className="h-full bg-indigo-600 transition-all" style={{ width: `${((miniQIndex + 1) / miniQuiz.length) * 100}%` }}></div>
+                  </div>
+                </div>
+
+                <div className="border border-slate-200 rounded-xl p-4 bg-white shadow-sm">
+                  <div className="inline-flex items-center px-2 py-0.5 rounded-full text-xs bg-sky-100 text-sky-700 font-medium mb-2">
+                    Skill Focus: {miniQuiz[miniQIndex]?.skill}
+                  </div>
+                  <p className="text-sm font-medium text-slate-900 mb-3">Q{miniQIndex + 1}. {miniQuiz[miniQIndex]?.question}</p>
+                  <div className="grid grid-cols-1 gap-2">
+                    {miniQuiz[miniQIndex]?.options.map((opt, oIdx) => {
+                      const active = miniAnswers[miniQIndex] === oIdx;
+                      return (
+                        <button
+                          key={oIdx}
+                          type="button"
+                          onClick={() => setMiniAnswers((prev) => ({ ...prev, [miniQIndex]: oIdx }))}
+                          className={`text-left px-3 py-2 rounded-lg border text-sm transition-all ${active ? 'border-indigo-500 bg-indigo-50 text-indigo-900' : 'border-slate-200 hover:border-slate-300 text-slate-700'}`}
+                        >
+                          {opt}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <button
+                    type="button"
+                    onClick={() => setMiniQIndex((i) => Math.max(0, i - 1))}
+                    disabled={miniQIndex === 0}
+                    className="px-3 py-1.5 rounded-lg border border-slate-300 text-sm text-slate-700 disabled:opacity-40"
+                  >
+                    Previous
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setMiniQIndex((i) => Math.min(miniQuiz.length - 1, i + 1))}
+                    disabled={miniQIndex === miniQuiz.length - 1}
+                    className="px-3 py-1.5 rounded-lg border border-slate-300 text-sm text-slate-700 disabled:opacity-40"
+                  >
+                    Next
+                  </button>
+                </div>
+
+                {miniInsights?.allAnswered && (
+                  <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4">
+                    <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
+                      <p className="text-sm font-semibold text-emerald-800">Mini Quiz Score: {miniInsights.score}/{miniQuiz.length}</p>
+                      <p className="text-sm font-semibold text-indigo-700">Readiness Preview: {readinessPreview}%</p>
+                    </div>
+
+                    <p className="text-xs uppercase tracking-[0.14em] text-emerald-700 font-semibold mb-2">Detected Skill Gaps</p>
+                    {miniInsights.skillGaps.length ? (
+                      <div className="flex flex-wrap gap-2">
+                        {miniInsights.skillGaps.map((skill) => (
+                          <span key={skill} className="px-2.5 py-1 rounded-full text-xs bg-white border border-amber-200 text-amber-700 font-medium">{skill}</span>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-sm text-emerald-700">Great job. No major gaps detected in this mini quiz.</p>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           <div className="flex items-center justify-between mt-5">
@@ -527,7 +711,7 @@ export default function AssessmentPage() {
               {step === 1 ? 'Cancel' : 'Back'}
             </button>
 
-            {step < 6 ? (
+            {step < 7 ? (
               <button
                 type="button"
                 onClick={() => setStep((s) => s + 1)}

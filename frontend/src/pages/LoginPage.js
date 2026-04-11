@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import { GraduationCap } from 'lucide-react';
+import { GraduationCap, ArrowRight, ArrowLeft } from 'lucide-react';
+import './LandingPage.css';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('student@college.edu');
@@ -31,70 +32,190 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 flex items-center justify-center p-6">
-      <div className="w-full max-w-md">
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-indigo-600 rounded-xl mb-4">
-            <GraduationCap className="w-8 h-8 text-white" />
+    <div className="sankalp-landing" style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
+      {/* Mini Header */}
+      <header style={{
+        padding: '1rem 2rem',
+        borderBottom: '2px solid var(--sk-ink)',
+        background: 'var(--sk-cream-light)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+      }}>
+        <Link to="/" className="sk-logo">
+          <div className="sk-logo-icon">
+            <GraduationCap size={22} color="#fff" />
           </div>
-          <h1 className="text-4xl font-semibold text-slate-900 mb-2" style={{fontFamily: 'Outfit'}}>PlacementHub</h1>
-          <p className="text-slate-500">Sign in to your account</p>
-        </div>
+          <div className="sk-logo-text">
+            <span className="sk-logo-name">Sankalp</span>
+            <span className="sk-logo-tag">Career Readiness</span>
+          </div>
+        </Link>
+        <Link to="/" style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: '6px',
+          color: 'var(--sk-ink)',
+          textDecoration: 'none',
+          fontSize: '0.88rem',
+          fontWeight: 500,
+        }}>
+          <ArrowLeft size={16} /> Back to home
+        </Link>
+      </header>
 
-        <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-8">
-          <form onSubmit={handleSubmit} className="space-y-6">
-            {error && (
-              <div className="bg-red-50 text-red-600 px-4 py-3 rounded-lg text-sm border border-red-200" data-testid="login-error-message">
-                {error}
-              </div>
-            )}
-
-            <div>
-              <label htmlFor="email" className="block text-sm font-medium text-slate-700 mb-2">
-                Email Address
-              </label>
-              <input
-                id="email"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-                data-testid="login-email-input"
-                className="w-full px-4 py-2.5 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-600 focus:border-transparent transition-all"
-                placeholder="you@college.edu"
-              />
-            </div>
-
-            <div>
-              <label htmlFor="password" className="block text-sm font-medium text-slate-700 mb-2">
-                Password
-              </label>
-              <input
-                id="password"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                data-testid="login-password-input"
-                className="w-full px-4 py-2.5 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-600 focus:border-transparent transition-all"
-                placeholder="••••••••"
-              />
-            </div>
-
-            <button
-              type="submit"
-              disabled={loading}
-              data-testid="login-submit-button"
-              className="w-full bg-indigo-600 text-white py-2.5 rounded-lg font-medium hover:bg-indigo-700 transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {loading ? 'Signing in...' : 'Sign In'}
-            </button>
-          </form>
-
-          <div className="mt-6 text-center">
-            <p className="text-sm text-slate-500">
-              Demo: TPO - tpo@college.edu / tpo123 | Student - student@college.edu / student123
+      {/* Login Form */}
+      <div style={{
+        flex: 1,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: '2rem',
+        background: 'var(--sk-cream)',
+      }}>
+        <div style={{ width: '100%', maxWidth: '440px' }}>
+          <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
+            <h1 style={{
+              fontFamily: 'var(--sk-font-display)',
+              fontSize: '2.5rem',
+              fontWeight: 700,
+              margin: '0 0 0.5rem',
+              color: 'var(--sk-ink)',
+            }}>
+              Welcome back
+            </h1>
+            <p style={{ color: 'var(--sk-ink-muted)', fontSize: '1rem' }}>
+              Sign in to continue your preparation journey
             </p>
+          </div>
+
+          <div style={{
+            background: 'var(--sk-cream-light)',
+            border: '2px solid var(--sk-ink)',
+            borderRadius: 'var(--sk-border-radius)',
+            boxShadow: '5px 5px 0 var(--sk-ink)',
+            padding: '2.5rem',
+          }}>
+            <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+              {error && (
+                <div style={{
+                  background: '#FEF2F2',
+                  color: '#DC2626',
+                  padding: '12px 16px',
+                  borderRadius: '8px',
+                  fontSize: '0.88rem',
+                  border: '1.5px solid #FECACA',
+                }} data-testid="login-error-message">
+                  {error}
+                </div>
+              )}
+
+              <div>
+                <label style={{
+                  display: 'block',
+                  fontWeight: 600,
+                  fontSize: '0.88rem',
+                  marginBottom: '8px',
+                  color: 'var(--sk-ink)',
+                  fontFamily: 'var(--sk-font-display)',
+                }}>
+                  Email Address
+                </label>
+                <input
+                  id="email"
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                  data-testid="login-email-input"
+                  placeholder="you@college.edu"
+                  style={{
+                    width: '100%',
+                    padding: '12px 16px',
+                    border: '2px solid var(--sk-ink)',
+                    borderRadius: '10px',
+                    background: 'var(--sk-cream)',
+                    fontSize: '0.95rem',
+                    fontFamily: 'var(--sk-font-body)',
+                    outline: 'none',
+                    transition: 'box-shadow 0.2s ease',
+                    boxSizing: 'border-box',
+                  }}
+                  onFocus={(e) => e.target.style.boxShadow = '2px 2px 0 var(--sk-ink)'}
+                  onBlur={(e) => e.target.style.boxShadow = 'none'}
+                />
+              </div>
+
+              <div>
+                <label style={{
+                  display: 'block',
+                  fontWeight: 600,
+                  fontSize: '0.88rem',
+                  marginBottom: '8px',
+                  color: 'var(--sk-ink)',
+                  fontFamily: 'var(--sk-font-display)',
+                }}>
+                  Password
+                </label>
+                <input
+                  id="password"
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  data-testid="login-password-input"
+                  placeholder="••••••••"
+                  style={{
+                    width: '100%',
+                    padding: '12px 16px',
+                    border: '2px solid var(--sk-ink)',
+                    borderRadius: '10px',
+                    background: 'var(--sk-cream)',
+                    fontSize: '0.95rem',
+                    fontFamily: 'var(--sk-font-body)',
+                    outline: 'none',
+                    transition: 'box-shadow 0.2s ease',
+                    boxSizing: 'border-box',
+                  }}
+                  onFocus={(e) => e.target.style.boxShadow = '2px 2px 0 var(--sk-ink)'}
+                  onBlur={(e) => e.target.style.boxShadow = 'none'}
+                />
+              </div>
+
+              <button
+                type="submit"
+                disabled={loading}
+                data-testid="login-submit-button"
+                className="sketch-btn sketch-btn-primary"
+                style={{
+                  width: '100%',
+                  justifyContent: 'center',
+                  padding: '14px',
+                  fontSize: '1rem',
+                  marginTop: '0.5rem',
+                }}
+              >
+                {loading ? 'Signing in...' : 'Sign In'}
+                {!loading && <ArrowRight size={16} />}
+              </button>
+            </form>
+
+            <div style={{
+              marginTop: '1.5rem',
+              textAlign: 'center',
+              paddingTop: '1.5rem',
+              borderTop: '1px dashed var(--sk-ink-muted)',
+            }}>
+              <p style={{ fontSize: '0.88rem', color: 'var(--sk-ink-muted)', margin: '0 0 0.5rem' }}>
+                Don't have an account?{' '}
+                <Link to="/register" style={{ color: 'var(--sk-accent)', fontWeight: 600, textDecoration: 'none' }}>
+                  Sign up
+                </Link>
+              </p>
+              <p style={{ fontSize: '0.78rem', color: 'var(--sk-ink-muted)', margin: '0.5rem 0 0' }}>
+                Demo: TPO — tpo@college.edu / tpo123 | Student — student@college.edu / student123
+              </p>
+            </div>
           </div>
         </div>
       </div>

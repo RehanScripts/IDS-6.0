@@ -117,7 +117,7 @@ export default function CompanyAnnouncements() {
       return;
     }
 
-    // Append locally for mock mode
+    // Append locally to keep the UI responsive.
     addCompanyAnnouncement({
       ...newCompany,
       jdFileName: jdUpload?.fileName,

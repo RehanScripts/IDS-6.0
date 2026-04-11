@@ -1,30 +1,179 @@
 from dotenv import load_dotenv
 from pathlib import Path
 import asyncio
+import io
+import re
+from collections import Counter
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
+UPLOADS_DIR = ROOT_DIR / "uploads"
+UPLOADS_DIR.mkdir(exist_ok=True)
 
-from fastapi import FastAPI, APIRouter, HTTPException, Request, Response
+from fastapi import FastAPI, APIRouter, HTTPException, Request, Response, Form, UploadFile, File
+from fastapi.responses import FileResponse
 from starlette.middleware.cors import CORSMiddleware
-from motor.motor_asyncio import AsyncIOMotorClient
 import os
 import logging
+import uuid
 from pydantic import BaseModel, Field, EmailStr
-from typing import List, Optional
+from typing import Any, List, Optional
 from datetime import datetime, timezone, timedelta
 import bcrypt
 import jwt
-from bson import ObjectId
 import secrets
+from pypdf import PdfReader
+from docx import Document
+from supabase import Client, create_client
+from postgrest.exceptions import APIError
 
-mongo_url = os.environ.get('MONGO_URL')
-if mongo_url:
-    client = AsyncIOMotorClient(mongo_url)
-    db = client[os.environ.get('DB_NAME', 'ids')]
-else:
-    client = None
-    db = None
+try:
+    import pytesseract
+    from PIL import Image
+except Exception:
+    pytesseract = None
+    Image = None
+
+SUPABASE_URL = os.environ.get("SUPABASE_URL")
+SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY")
+SUPABASE_SERVICE_ROLE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
+
+supabase_service: Optional[Client] = None
+if SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY:
+    supabase_service = create_client(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
+
+supabase_public: Optional[Client] = None
+if SUPABASE_URL and SUPABASE_ANON_KEY:
+    supabase_public = create_client(SUPABASE_URL, SUPABASE_ANON_KEY)
+
+class _SupabaseCursor:
+    def __init__(self, rows: list[dict[str, Any]]):
+        self._rows = rows
+
+    async def to_list(self, _limit: int) -> list[dict[str, Any]]:
+        return list(self._rows)
+
+class _SupabaseCollection:
+    def __init__(self, client: Client, table_name: str):
+        self._client = client
+        self._table = table_name
+
+    def _apply_filters(self, query, filters: dict) -> Any:
+        for key, value in (filters or {}).items():
+            column = "id" if key == "_id" else key
+            if isinstance(value, dict):
+                if "$gte" in value:
+                    query = query.gte(column, value["$gte"])
+                if "$lt" in value:
+                    query = query.lt(column, value["$lt"])
+            else:
+                query = query.eq(column, value)
+        return query
+
+    def _project_row(self, row: dict[str, Any], projection: Optional[dict]) -> dict[str, Any]:
+        if not projection:
+            return row
+
+        include_keys = [k for k, v in projection.items() if v and k != "_id"]
+        if include_keys:
+            return {k: row.get(k) for k in include_keys}
+
+        # Exclusion projection (e.g. {"_id": 0, "password_hash": 0})
+        excluded = {k for k, v in projection.items() if v == 0}
+        filtered = dict(row)
+        for key in excluded:
+            filtered.pop(key, None)
+        return filtered
+
+    def _normalize_json_value(self, value: Any) -> Any:
+        if isinstance(value, datetime):
+            return value.isoformat()
+        if isinstance(value, dict):
+            return {k: self._normalize_json_value(v) for k, v in value.items()}
+        if isinstance(value, list):
+            return [self._normalize_json_value(v) for v in value]
+        return value
+
+    def _missing_column_name(self, exc: Exception) -> Optional[str]:
+        message = str(exc)
+        match = re.search(r"Could not find the '([^']+)' column", message)
+        if match:
+            return match.group(1)
+        return None
+
+    def _is_invalid_uuid_error(self, exc: Exception) -> bool:
+        return "invalid input syntax for type uuid" in str(exc).lower()
+
+    async def find_one(self, filters: dict, projection: Optional[dict] = None) -> Optional[dict[str, Any]]:
+        query = self._client.table(self._table).select("*")
+        query = self._apply_filters(query, filters)
+        response = query.limit(1).execute()
+        rows = response.data or []
+        if not rows:
+            return None
+        return self._project_row(rows[0], projection)
+
+    async def insert_one(self, doc: dict[str, Any]):
+        payload = self._normalize_json_value(dict(doc))
+        payload.setdefault("id", str(uuid.uuid4()))
+        while True:
+            try:
+                response = self._client.table(self._table).insert(payload).execute()
+                break
+            except APIError as exc:
+                if self._is_invalid_uuid_error(exc) and "id" in payload:
+                    payload.pop("id", None)
+                    continue
+                missing = self._missing_column_name(exc)
+                if missing and missing in payload:
+                    payload.pop(missing, None)
+                    continue
+                raise
+        inserted = (response.data or [payload])[0]
+        return type("_InsertResult", (), {"inserted_id": inserted.get("id")})()
+
+    async def update_one(self, filters: dict, update: dict):
+        update_fields = self._normalize_json_value(update.get("$set", update))
+        while True:
+            if not update_fields:
+                return
+            try:
+                query = self._client.table(self._table).update(update_fields)
+                query = self._apply_filters(query, filters)
+                query.execute()
+                return
+            except APIError as exc:
+                missing = self._missing_column_name(exc)
+                if missing and missing in update_fields:
+                    update_fields.pop(missing, None)
+                    continue
+                raise
+
+    async def count_documents(self, filters: dict) -> int:
+        query = self._client.table(self._table).select("id", count="exact", head=True)
+        query = self._apply_filters(query, filters)
+        response = query.execute()
+        return response.count or 0
+
+    def find(self, filters: dict, projection: Optional[dict] = None) -> _SupabaseCursor:
+        query = self._client.table(self._table).select("*")
+        query = self._apply_filters(query, filters)
+        response = query.execute()
+        rows = response.data or []
+        projected = [self._project_row(row, projection) for row in rows]
+        return _SupabaseCursor(projected)
+
+    async def create_index(self, *_args, **_kwargs):
+        return None
+
+class _SupabaseDatabase:
+    def __init__(self, client: Client):
+        self.users = _SupabaseCollection(client, "profiles")
+        self.companies = _SupabaseCollection(client, "companies")
+        self.roadmaps = _SupabaseCollection(client, "roadmaps")
+        self.student_progress = _SupabaseCollection(client, "student_progress")
+
+db = _SupabaseDatabase(supabase_service) if supabase_service else None
 
 app = FastAPI()
 api_router = APIRouter(prefix="/api")
@@ -50,6 +199,23 @@ def create_refresh_token(user_id: str) -> str:
     payload = {"sub": user_id, "exp": datetime.now(timezone.utc) + timedelta(days=7), "type": "refresh"}
     return jwt.encode(payload, get_jwt_secret(), algorithm=JWT_ALGORITHM)
 
+def create_supabase_auth_user(email: str, password: str, metadata: Optional[dict[str, Any]] = None) -> Optional[str]:
+    if supabase_service is None:
+        return None
+    try:
+        created = supabase_service.auth.admin.create_user(
+            {
+                "email": email,
+                "password": password,
+                "email_confirm": True,
+                "user_metadata": metadata or {},
+            }
+        )
+        user = getattr(created, "user", None)
+        return str(getattr(user, "id", "")) if user else None
+    except Exception:
+        return None
+
 async def get_current_user(request: Request) -> dict:
     token = request.cookies.get("access_token")
     if not token:
@@ -57,8 +223,9 @@ async def get_current_user(request: Request) -> dict:
         if auth_header.startswith("Bearer "):
             token = auth_header[7:]
     if not token:
-        # For demo purposes, allow one mock user if no token
-        return {"id": "mock_tpo_id", "email": "tpo@college.edu", "name": "TPO Admin", "role": "tpo"}
+        if os.environ.get("ALLOW_MOCK_AUTH", "false").lower() == "true":
+            return {"id": "mock_tpo_id", "email": "tpo@college.edu", "name": "TPO Admin", "role": "tpo"}
+        raise HTTPException(status_code=401, detail="Not authenticated")
     try:
         payload = jwt.decode(token, get_jwt_secret(), algorithms=[JWT_ALGORITHM])
         if payload.get("type") != "access":
@@ -70,10 +237,10 @@ async def get_current_user(request: Request) -> dict:
         if payload["sub"] == "mock_student_id":
             return {"id": "mock_student_id", "email": "student@college.edu", "name": "Abhay Patil", "role": "student", "branch": "Mechanical Engineering"}
 
-        if not db:
-             raise HTTPException(status_code=401, detail="Database not connected")
+        if db is None:
+            raise HTTPException(status_code=401, detail="Database not connected")
              
-        user = await db.users.find_one({"_id": ObjectId(payload["sub"])}, {"_id": 0})
+        user = await db.users.find_one({"id": payload["sub"]}, {"_id": 0})
         if not user:
             raise HTTPException(status_code=401, detail="User not found")
         user["id"] = str(payload["sub"])
@@ -95,24 +262,106 @@ class LoginRequest(BaseModel):
     email: EmailStr
     password: str
 
+class StudentProfileUpdateRequest(BaseModel):
+    about: str = Field(min_length=1, max_length=2000)
+
+SKILL_KEYWORDS = [
+    "python", "java", "c++", "javascript", "react", "node", "sql", "mongodb",
+    "machine learning", "data analysis", "excel", "power bi", "autocad", "solidworks",
+    "ansys", "matlab", "communication", "leadership", "teamwork", "problem solving",
+]
+
+def _extract_text_from_resume(file_name: str, file_bytes: bytes, content_type: str) -> str:
+    file_name = (file_name or "").lower()
+    content_type = (content_type or "").lower()
+
+    if file_name.endswith(".pdf") or "pdf" in content_type:
+        try:
+            reader = PdfReader(io.BytesIO(file_bytes))
+            pages = [page.extract_text() or "" for page in reader.pages]
+            text = "\n".join(pages).strip()
+            if text:
+                return text
+        except Exception:
+            pass
+
+    if file_name.endswith(".docx") or "word" in content_type:
+        try:
+            document = Document(io.BytesIO(file_bytes))
+            return "\n".join(paragraph.text for paragraph in document.paragraphs if paragraph.text).strip()
+        except Exception:
+            pass
+
+    if file_name.endswith(".txt") or "text/plain" in content_type:
+        try:
+            return file_bytes.decode("utf-8", errors="ignore").strip()
+        except Exception:
+            pass
+
+    if (file_name.endswith(".png") or file_name.endswith(".jpg") or file_name.endswith(".jpeg") or "image" in content_type) and pytesseract and Image:
+        try:
+            image = Image.open(io.BytesIO(file_bytes))
+            return pytesseract.image_to_string(image).strip()
+        except Exception:
+            return ""
+
+    return ""
+
+def _nlp_resume_insights(text: str) -> dict:
+    normalized = (text or "").lower()
+    tokens = re.findall(r"[a-zA-Z][a-zA-Z0-9+.#-]{1,}", normalized)
+    token_counts = Counter(tokens)
+
+    phones = re.findall(r"(?:\+?\d{1,3}[\s-]?)?(?:\d[\s-]?){10,13}", text or "")
+    emails = re.findall(r"[\w\.-]+@[\w\.-]+\.\w+", text or "")
+    links = re.findall(r"https?://\S+|www\.\S+", text or "")
+
+    matched_skills = []
+    for skill in SKILL_KEYWORDS:
+        if skill in normalized:
+            matched_skills.append(skill.title())
+
+    top_terms = [term for term, _ in token_counts.most_common(8) if len(term) > 3]
+    summary = " ".join((text or "").split())[:280]
+
+    return {
+        "skills": sorted(set(matched_skills)),
+        "emails": sorted(set(emails))[:5],
+        "phones": sorted(set(phones))[:5],
+        "links": sorted(set(links))[:5],
+        "top_terms": top_terms,
+        "summary": summary,
+        "text_preview": (text or "")[:800],
+    }
+
 @api_router.post("/auth/register")
 async def register(input: RegisterRequest, response: Response):
     email = input.email.lower()
     existing = await db.users.find_one({"email": email})
     if existing:
         raise HTTPException(status_code=400, detail="Email already registered")
+
+    auth_user_id = create_supabase_auth_user(
+        email,
+        input.password,
+        {"name": input.name, "role": input.role, "branch": input.branch},
+    )
+    if not auth_user_id:
+        raise HTTPException(status_code=400, detail="Unable to create authentication user")
     
-    hashed = hash_password(input.password)
     user_doc = {
+        "id": auth_user_id,
         "email": email,
-        "password_hash": hashed,
         "name": input.name,
         "role": input.role,
         "branch": input.branch,
+        "readiness_score": 0,
+        "placement_status": "not_placed",
+        "weak_skills": [],
         "created_at": datetime.now(timezone.utc)
     }
-    result = await db.users.insert_one(user_doc)
-    user_id = str(result.inserted_id)
+    await db.users.insert_one(user_doc)
+    user_id = auth_user_id
     
     access_token = create_access_token(user_id, email)
     refresh_token = create_refresh_token(user_id)
@@ -121,6 +370,93 @@ async def register(input: RegisterRequest, response: Response):
     response.set_cookie(key="refresh_token", value=refresh_token, httponly=True, secure=False, samesite="lax", max_age=604800, path="/")
     
     return {"id": user_id, "email": email, "name": input.name, "role": input.role, "branch": input.branch}
+
+@api_router.post("/auth/register-profile")
+async def register_profile(
+    response: Response,
+    name: str = Form(...),
+    email: EmailStr = Form(...),
+    password: str = Form(...),
+    role: str = Form("student"),
+    branch: Optional[str] = Form(None),
+    college_name: Optional[str] = Form(None),
+    year: Optional[str] = Form(None),
+    about: Optional[str] = Form(None),
+    resume: Optional[UploadFile] = File(None),
+):
+    if db is None:
+        raise HTTPException(status_code=503, detail="Database not connected")
+
+    normalized_email = email.lower()
+    existing = await db.users.find_one({"email": normalized_email})
+    if existing:
+        raise HTTPException(status_code=400, detail="Email already registered")
+
+    auth_user_id = create_supabase_auth_user(
+        normalized_email,
+        password,
+        {"name": name, "role": role, "branch": branch},
+    )
+    if not auth_user_id:
+        raise HTTPException(status_code=400, detail="Unable to create authentication user")
+
+    resume_file_name = None
+    resume_storage_name = None
+    resume_content_type = None
+    resume_insights = {
+        "skills": [],
+        "emails": [],
+        "phones": [],
+        "links": [],
+        "top_terms": [],
+        "summary": "",
+        "text_preview": "",
+    }
+
+    if resume is not None:
+        file_bytes = await resume.read()
+        resume_file_name = resume.filename
+        resume_content_type = resume.content_type or "application/octet-stream"
+        suffix = Path(resume.filename or "resume").suffix
+        resume_storage_name = f"{secrets.token_urlsafe(18)}{suffix}"
+        (UPLOADS_DIR / resume_storage_name).write_bytes(file_bytes)
+        extracted_text = _extract_text_from_resume(resume.filename or "", file_bytes, resume.content_type or "")
+        resume_insights = _nlp_resume_insights(extracted_text)
+
+    user_doc = {
+        "id": auth_user_id,
+        "email": normalized_email,
+        "name": name,
+        "role": role,
+        "branch": branch,
+        "readiness_score": 0,
+        "placement_status": "not_placed",
+        "weak_skills": [],
+        "created_at": datetime.now(timezone.utc),
+    }
+
+    await db.users.insert_one(user_doc)
+    user_id = auth_user_id
+
+    access_token = create_access_token(user_id, normalized_email)
+    refresh_token = create_refresh_token(user_id)
+    response.set_cookie(key="access_token", value=access_token, httponly=True, secure=False, samesite="lax", max_age=900, path="/")
+    response.set_cookie(key="refresh_token", value=refresh_token, httponly=True, secure=False, samesite="lax", max_age=604800, path="/")
+
+    return {
+        "id": user_id,
+        "email": normalized_email,
+        "name": name,
+        "role": role,
+        "branch": branch,
+        "college_name": college_name,
+        "year": year,
+        "about": about,
+        "resume_file_name": resume_file_name,
+        "resume_storage_name": resume_storage_name,
+        "resume_content_type": resume_content_type,
+        "resume_insights": resume_insights,
+    }
 
 @api_router.post("/auth/login")
 async def login(input: LoginRequest, response: Response):
@@ -134,12 +470,28 @@ async def login(input: LoginRequest, response: Response):
         user_id = "mock_student_id"
         user = {"email": email, "name": "Abhay Patil", "role": "student", "branch": "Mechanical Engineering"}
     else:
-        if not db:
+        if db is None:
             raise HTTPException(status_code=401, detail="Database not connected and user not in mock list")
         user = await db.users.find_one({"email": email})
-        if not user or not verify_password(input.password, user["password_hash"]):
+        if not user:
             raise HTTPException(status_code=401, detail="Invalid email or password")
-        user_id = str(user["_id"])
+
+        password_ok = False
+        stored_hash = user.get("password_hash")
+        if stored_hash:
+            password_ok = verify_password(input.password, stored_hash)
+        elif supabase_public is not None:
+            try:
+                auth_result = supabase_public.auth.sign_in_with_password({"email": email, "password": input.password})
+                password_ok = bool(getattr(auth_result, "user", None))
+            except Exception:
+                password_ok = False
+
+        if not password_ok:
+            raise HTTPException(status_code=401, detail="Invalid email or password")
+
+        user_id = str(user.get("id"))
+        user.pop("password_hash", None)
 
     access_token = create_access_token(user_id, email)
     refresh_token = create_refresh_token(user_id)
@@ -147,7 +499,20 @@ async def login(input: LoginRequest, response: Response):
     response.set_cookie(key="access_token", value=access_token, httponly=True, secure=False, samesite="lax", max_age=900, path="/")
     response.set_cookie(key="refresh_token", value=refresh_token, httponly=True, secure=False, samesite="lax", max_age=604800, path="/")
     
-    return {"id": user_id, "email": user["email"], "name": user["name"], "role": user["role"], "branch": user.get("branch")}
+    return {
+        "id": user_id,
+        "email": user["email"],
+        "name": user["name"],
+        "role": user["role"],
+        "branch": user.get("branch"),
+        "college_name": user.get("college_name"),
+        "year": user.get("year"),
+        "about": user.get("about"),
+        "resume_file_name": user.get("resume_file_name"),
+        "resume_storage_name": user.get("resume_storage_name"),
+        "resume_content_type": user.get("resume_content_type"),
+        "resume_insights": user.get("resume_insights"),
+    }
 
 @api_router.post("/auth/logout")
 async def logout(response: Response):
@@ -224,7 +589,7 @@ async def get_tpo_dashboard_stats(request: Request):
     if user["role"] != "tpo":
         raise HTTPException(status_code=403, detail="Access denied")
     
-    if not db:
+    if db is None:
         total = len(MOCK_STUDENTS)
         active = len([c for c in MOCK_COMPANIES if c["status"] == "active"])
         avg = round(sum(s["readiness_score"] for s in MOCK_STUDENTS) / total, 1)
@@ -267,7 +632,7 @@ async def get_readiness_distribution(request: Request):
     if user["role"] != "tpo":
         raise HTTPException(status_code=403, detail="Access denied")
     
-    if not db:
+    if db is None:
         ready = len([s for s in MOCK_STUDENTS if s["readiness_score"] >= 70])
         not_ready = len([s for s in MOCK_STUDENTS if s["readiness_score"] < 70])
         return [{"name": "Ready", "value": ready}, {"name": "Not Ready", "value": not_ready}]
@@ -286,7 +651,7 @@ async def get_companies(request: Request):
     if user["role"] != "tpo":
         raise HTTPException(status_code=403, detail="Access denied")
     
-    if not db:
+    if db is None:
         return MOCK_COMPANIES
 
     companies = await db.companies.find({}, {"_id": 0}).to_list(100)
@@ -320,7 +685,7 @@ async def get_students(request: Request, branch: Optional[str] = None, min_readi
     if user["role"] != "tpo":
         raise HTTPException(status_code=403, detail="Access denied")
     
-    if not db:
+    if db is None:
         filtered = MOCK_STUDENTS
         if branch:
             filtered = [s for s in filtered if s["branch"] == branch]
@@ -343,13 +708,13 @@ async def get_student_dashboard_stats(request: Request):
     if user["role"] != "student":
         raise HTTPException(status_code=403, detail="Access denied")
     
-    if not db:
+    if db is None:
         return {"readiness_score": 78, "active_roadmap": 2, "progress_percentage": 45}
 
     student_data = await db.users.find_one({"email": user["email"]})
     readiness_score = student_data.get("readiness_score", 0)
     
-    roadmaps = await db.roadmaps.count_documents({"student_email": user["email"]})
+    roadmaps = await db.roadmaps.count_documents({"student_id": user["id"]})
     
     progress_doc = await db.student_progress.find_one({"student_email": user["email"]})
     progress = progress_doc.get("progress_percentage", 0) if progress_doc else 0
@@ -366,11 +731,107 @@ async def get_student_companies(request: Request):
     if user["role"] != "student":
         raise HTTPException(status_code=403, detail="Access denied")
     
-    if not db:
+    if db is None:
         return MOCK_COMPANIES
 
     companies = await db.companies.find({"status": "active"}, {"_id": 0}).to_list(100)
     return companies
+
+@api_router.patch("/student/profile")
+async def update_student_profile(input: StudentProfileUpdateRequest, request: Request):
+    user = await get_current_user(request)
+    if user["role"] != "student":
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    if db is None:
+        raise HTTPException(status_code=503, detail="Database not connected")
+
+    about_text = input.about.strip()
+    await db.users.update_one({"email": user["email"]}, {"$set": {"about": about_text}})
+
+    updated_user = await db.users.find_one({"email": user["email"]}, {"_id": 0})
+    if not updated_user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    updated_user["id"] = user["id"]
+    updated_user.pop("password_hash", None)
+    return updated_user
+
+@api_router.post("/student/resume")
+async def update_student_resume(request: Request, resume: UploadFile = File(...)):
+    user = await get_current_user(request)
+    if user["role"] != "student":
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    if db is None:
+        raise HTTPException(status_code=503, detail="Database not connected")
+
+    db_user = await db.users.find_one({"email": user["email"]}, {"id": 1, "resume_storage_name": 1})
+    if not db_user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    file_bytes = await resume.read()
+    if not file_bytes:
+        raise HTTPException(status_code=400, detail="Uploaded resume file is empty")
+
+    suffix = Path(resume.filename or "resume").suffix
+    resume_storage_name = f"{secrets.token_urlsafe(18)}{suffix}"
+    resume_file_name = resume.filename or "resume"
+    resume_content_type = resume.content_type or "application/octet-stream"
+
+    (UPLOADS_DIR / resume_storage_name).write_bytes(file_bytes)
+
+    old_storage_name = db_user.get("resume_storage_name")
+    if old_storage_name:
+        old_path = UPLOADS_DIR / old_storage_name
+        if old_path.exists() and old_path.is_file():
+            old_path.unlink(missing_ok=True)
+
+    extracted_text = _extract_text_from_resume(resume_file_name, file_bytes, resume_content_type)
+    resume_insights = _nlp_resume_insights(extracted_text)
+
+    await db.users.update_one(
+        {"id": db_user["id"]},
+        {
+            "$set": {
+                "resume_file_name": resume_file_name,
+                "resume_storage_name": resume_storage_name,
+                "resume_content_type": resume_content_type,
+                "resume_insights": resume_insights,
+            }
+        },
+    )
+
+    updated_user = await db.users.find_one({"id": db_user["id"]}, {"_id": 0})
+    updated_user["id"] = user["id"]
+    updated_user.pop("password_hash", None)
+    return updated_user
+
+@api_router.get("/student/resume")
+async def download_student_resume(request: Request):
+    user = await get_current_user(request)
+    if user["role"] != "student":
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    if db is None:
+        raise HTTPException(status_code=503, detail="Database not connected")
+
+    db_user = await db.users.find_one(
+        {"email": user["email"]},
+        {"resume_storage_name": 1, "resume_file_name": 1, "resume_content_type": 1},
+    )
+    if not db_user or not db_user.get("resume_storage_name"):
+        raise HTTPException(status_code=404, detail="Resume not found")
+
+    resume_path = UPLOADS_DIR / db_user["resume_storage_name"]
+    if not resume_path.exists():
+        raise HTTPException(status_code=404, detail="Resume file is unavailable")
+
+    return FileResponse(
+        path=resume_path,
+        filename=db_user.get("resume_file_name") or "resume",
+        media_type=db_user.get("resume_content_type") or "application/octet-stream",
+    )
 
 class RoadmapCreate(BaseModel):
     company_id: str
@@ -385,6 +846,7 @@ async def create_roadmap(input: RoadmapCreate, request: Request):
     
     roadmap_doc = {
         "id": secrets.token_urlsafe(8),
+        "student_id": user["id"],
         "student_email": user["email"],
         "company_id": input.company_id,
         "company_name": input.company_name,
@@ -423,7 +885,7 @@ async def get_roadmaps(request: Request):
     if user["role"] != "student":
         raise HTTPException(status_code=403, detail="Access denied")
     
-    roadmaps = await db.roadmaps.find({"student_email": user["email"]}, {"_id": 0}).to_list(100)
+    roadmaps = await db.roadmaps.find({"student_id": user["id"]}, {"_id": 0}).to_list(100)
     return roadmaps
 
 @api_router.get("/student/progress")
@@ -432,7 +894,7 @@ async def get_progress(request: Request):
     if user["role"] != "student":
         raise HTTPException(status_code=403, detail="Access denied")
     
-    roadmaps = await db.roadmaps.find({"student_email": user["email"]}, {"_id": 0}).to_list(100)
+    roadmaps = await db.roadmaps.find({"student_id": user["id"]}, {"_id": 0}).to_list(100)
     
     all_tasks = []
     for roadmap in roadmaps:
@@ -461,9 +923,24 @@ async def update_progress(input: TaskUpdate, request: Request):
     roadmap_id = parts[0]
     day = int(parts[1])
     
+    roadmap = await db.roadmaps.find_one({"id": roadmap_id, "student_id": user["id"]})
+    if not roadmap:
+        raise HTTPException(status_code=404, detail="Roadmap not found")
+
+    plan = roadmap.get("plan", [])
+    updated = False
+    for task in plan:
+        if task.get("day") == day:
+            task["completed"] = input.completed
+            updated = True
+            break
+
+    if not updated:
+        raise HTTPException(status_code=404, detail="Task not found")
+
     await db.roadmaps.update_one(
-        {"id": roadmap_id, "student_email": user["email"], "plan.day": day},
-        {"$set": {"plan.$.completed": input.completed}}
+        {"id": roadmap_id, "student_id": user["id"]},
+        {"$set": {"plan": plan}}
     )
     
     return {"message": "Progress updated"}
@@ -487,14 +964,17 @@ logger = logging.getLogger(__name__)
 @app.on_event("startup")
 async def startup_db():
     if db is None:
-        print("MongoDB is not connected. Skipping DB initialization.")
+        print("Supabase is not connected. Skipping DB initialization.")
         return
 
     try:
-        await asyncio.wait_for(client.admin.command("ping"), timeout=2)
+        await asyncio.to_thread(lambda: supabase_service.table("profiles").select("id", count="exact", head=True).execute())
     except Exception as err:
-        print(f"MongoDB is unavailable. Skipping DB initialization. Error: {err}")
+        print(f"Supabase is unavailable. Skipping DB initialization. Error: {err}")
         return
+
+    # Skip auto-seeding when running with Supabase schema that may vary by project.
+    return
 
     await db.users.create_index("email", unique=True)
     
@@ -503,48 +983,62 @@ async def startup_db():
     existing_admin = await db.users.find_one({"email": admin_email})
     if existing_admin is None:
         hashed = hash_password(admin_password)
-        await db.users.insert_one({
-            "email": admin_email,
-            "password_hash": hashed,
-            "name": "TPO Admin",
-            "role": "tpo",
-            "created_at": datetime.now(timezone.utc)
-        })
-    elif not verify_password(admin_password, existing_admin["password_hash"]):
-        await db.users.update_one({"email": admin_email}, {"$set": {"password_hash": hash_password(admin_password)}})
+        try:
+            await db.users.insert_one({
+                "email": admin_email,
+                "password_hash": hashed,
+                "name": "TPO Admin",
+                "role": "tpo",
+                "created_at": datetime.now(timezone.utc)
+            })
+        except Exception:
+            pass
+    else:
+        stored_hash = existing_admin.get("password_hash")
+        if stored_hash and not verify_password(admin_password, stored_hash):
+            try:
+                await db.users.update_one({"email": admin_email}, {"$set": {"password_hash": hash_password(admin_password)}})
+            except Exception:
+                pass
     
     student_email = "student@college.edu"
     student_password = "student123"
     existing_student = await db.users.find_one({"email": student_email})
     if existing_student is None:
         hashed = hash_password(student_password)
-        await db.users.insert_one({
-            "email": student_email,
-            "password_hash": hashed,
-            "name": "John Doe",
-            "role": "student",
-            "branch": "Computer Science",
-            "readiness_score": 72,
-            "weak_skills": ["DSA", "System Design"],
-            "placement_status": "not_placed",
-            "created_at": datetime.now(timezone.utc)
-        })
+        try:
+            await db.users.insert_one({
+                "email": student_email,
+                "password_hash": hashed,
+                "name": "John Doe",
+                "role": "student",
+                "branch": "Computer Science",
+                "readiness_score": 72,
+                "weak_skills": ["DSA", "System Design"],
+                "placement_status": "not_placed",
+                "created_at": datetime.now(timezone.utc)
+            })
+        except Exception:
+            pass
     
     for i in range(2, 21):
         test_email = f"student{i}@college.edu"
         exists = await db.users.find_one({"email": test_email})
         if not exists:
-            await db.users.insert_one({
-                "email": test_email,
-                "password_hash": hash_password("student123"),
-                "name": f"Student {i}",
-                "role": "student",
-                "branch": ["Computer Science", "Electronics", "Mechanical", "Civil"][i % 4],
-                "readiness_score": 50 + (i * 3) % 40,
-                "weak_skills": [["DSA", "React"], ["System Design", "SQL"], ["Python", "Communication"]][i % 3],
-                "placement_status": "placed" if i % 4 == 0 else "not_placed",
-                "created_at": datetime.now(timezone.utc)
-            })
+            try:
+                await db.users.insert_one({
+                    "email": test_email,
+                    "password_hash": hash_password("student123"),
+                    "name": f"Student {i}",
+                    "role": "student",
+                    "branch": ["Computer Science", "Electronics", "Mechanical", "Civil"][i % 4],
+                    "readiness_score": 50 + (i * 3) % 40,
+                    "weak_skills": [["DSA", "React"], ["System Design", "SQL"], ["Python", "Communication"]][i % 3],
+                    "placement_status": "placed" if i % 4 == 0 else "not_placed",
+                    "created_at": datetime.now(timezone.utc)
+                })
+            except Exception:
+                pass
     
     companies_data = [
         {"id": "comp1", "company_name": "Google", "role": "SDE", "date": "2026-02-15", "eligibility": "CGPA >= 7.5", "status": "active", "package": "25 LPA"},
@@ -577,4 +1071,4 @@ async def startup_db():
 
 @app.on_event("shutdown")
 async def shutdown_db_client():
-    client.close()
+    return

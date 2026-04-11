@@ -1,111 +1,177 @@
-import React, { useEffect, useState } from 'react';
-import { Outlet, NavLink, useNavigate } from 'react-router-dom';
+import React, { useState, useRef } from 'react';
+import { Outlet, NavLink, useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
-import { LayoutDashboard, Building2, Map, TrendingUp, User, LogOut, Moon, Sun } from 'lucide-react';
+import {
+  LayoutDashboard, Building2, Map, TrendingUp, User, LogOut, ChevronDown,
+  GraduationCap, Target, Brain, BarChart3, Compass, BookOpen, HelpCircle,
+} from 'lucide-react';
+import '../LandingPage.css';
 
-const menuItems = [
+const sidebarItems = [
   { path: '/student/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { path: '/student/companies', label: 'Companies', icon: Building2 },
+  { path: '/student/assessment', label: 'Assessment', icon: Target },
   { path: '/student/roadmaps', label: 'My Roadmaps', icon: Map },
   { path: '/student/progress', label: 'Progress', icon: TrendingUp },
   { path: '/student/profile', label: 'Profile', icon: User },
 ];
 
+/* ─── Dropdown ─── */
+function HeaderDropdown({ label, items }) {
+  const [open, setOpen] = useState(false);
+  const timeout = useRef(null);
+  const handleEnter = () => { clearTimeout(timeout.current); setOpen(true); };
+  const handleLeave = () => { timeout.current = setTimeout(() => setOpen(false), 200); };
+
+  return (
+    <div className="nav-dropdown-wrap" onMouseEnter={handleEnter} onMouseLeave={handleLeave}>
+      <button className="nav-link nav-link-dropdown">
+        {label}
+        <ChevronDown size={14} style={{ transform: open ? 'rotate(180deg)' : 'rotate(0)', transition: 'transform 0.3s ease' }} />
+      </button>
+      <div className={`nav-dropdown-panel ${open ? 'nav-dropdown-open' : ''}`}>
+        {items.map((item, i) => (
+          <NavLink key={i} to={item.href} className="nav-dropdown-item">
+            {item.icon && <item.icon size={16} />}
+            <span>{item.label}</span>
+          </NavLink>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export default function StudentLayout() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
-  const [theme, setTheme] = useState(() => localStorage.getItem('placementhub.theme') || 'light');
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
-  useEffect(() => {
-    localStorage.setItem('placementhub.theme', theme);
-    document.documentElement.classList.toggle('theme-dark', theme === 'dark');
-  }, [theme]);
+  const handleLogout = async () => { await logout(); navigate('/login'); };
 
-  const handleLogout = async () => {
-    await logout();
-    navigate('/login');
-  };
+  const servicesDropdown = [
+    { label: 'Job Specific Roadmap', href: '/student/roadmaps', icon: Target },
+    { label: 'AI Personalised Quiz', href: '/student/assessment', icon: Brain },
+    { label: 'Readiness Score', href: '/student/progress', icon: BarChart3 },
+    { label: 'Strategic Planning', href: '/student/roadmaps', icon: Compass },
+    { label: 'Content', href: '/student/roadmaps', icon: BookOpen },
+  ];
+
+  const faqDropdown = [
+    { label: 'Planning', href: '/student/roadmaps', icon: Compass },
+    { label: 'How It Works', href: '/student/dashboard', icon: HelpCircle },
+    { label: 'Quiz', href: '/student/assessment', icon: Brain },
+    { label: 'Content', href: '/student/roadmaps', icon: BookOpen },
+  ];
 
   return (
-    <div className="student-layout-root flex min-h-screen bg-sky-50">
-      <aside className="hidden md:flex md:w-64 lg:w-72 student-sidebar-panel flex-col fixed h-full" data-testid="student-sidebar">
-        <div className="p-6 border-b border-slate-200/60">
-          <div className="student-brand-wrap">
-            <div className="student-brand-orb">PH</div>
-            <div>
-              <h1 className="text-xl font-semibold text-slate-900" style={{fontFamily: 'Outfit'}}>PlacementHub</h1>
-              <p className="text-xs text-slate-500 mt-1">Student Portal</p>
+    <div className="sankalp-landing" style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
+      {/* ═══ HEADER — Same as Landing ═══ */}
+      <header className="sk-header">
+        <div className="sk-header-inner">
+          <Link to="/" className="sk-logo">
+            <div className="sk-logo-icon"><GraduationCap size={22} color="#fff" /></div>
+            <div className="sk-logo-text">
+              <span className="sk-logo-name">Sankalp</span>
+              <span className="sk-logo-tag">Student Portal</span>
             </div>
-          </div>
-        </div>
+          </Link>
 
-        <nav className="flex-1 p-4 space-y-1">
-          {menuItems.map((item) => {
-            const Icon = item.icon;
-            return (
-              <NavLink
-                key={item.path}
-                to={item.path}
-                data-testid={`student-nav-${item.label.toLowerCase().replace(/\s+/g, '-')}`}
-                className={({ isActive }) =>
-                  `student-nav-item flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${isActive
-                    ? 'student-nav-item-active text-sky-700'
-                    : 'text-slate-600 hover:bg-white hover:text-slate-900'
-                  }`
-                }
-              >
-                <Icon className="w-5 h-5" />
-                <span className="text-sm font-medium">{item.label}</span>
-              </NavLink>
-            );
-          })}
-        </nav>
+          <nav className="sk-nav">
+            <NavLink to="/student/dashboard" className="nav-link">Dashboard</NavLink>
+            <HeaderDropdown label="Services" items={servicesDropdown} />
+            <HeaderDropdown label="FAQ" items={faqDropdown} />
+            <NavLink to="/student/companies" className="nav-link">Companies</NavLink>
+          </nav>
 
-        <div className="p-4 border-t border-slate-200/60">
-          <div className="student-profile-shell flex items-center gap-3 px-4 py-3 mb-2 rounded-xl">
-            <div className="w-10 h-10 bg-sky-700 rounded-full flex items-center justify-center text-white text-sm font-medium shadow-sm">
-              {user?.name?.[0] || 'S'}
+          <div className="sk-header-actions">
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: '10px',
+              padding: '6px 14px', borderRadius: '50px',
+              border: '2px solid var(--sk-ink)', background: 'var(--sk-cream)',
+              boxShadow: '2px 2px 0 var(--sk-ink)',
+            }}>
+              <div style={{
+                width: 30, height: 30, borderRadius: '50%', background: 'var(--sk-accent)',
+                color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: '0.8rem', fontWeight: 700,
+              }}>
+                {user?.name?.[0] || 'S'}
+              </div>
+              <span style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--sk-ink)' }}>{user?.name || 'Student'}</span>
             </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-slate-900 truncate">{user?.name}</p>
-              <p className="text-xs text-slate-500 truncate">{user?.email}</p>
-            </div>
+            <button onClick={handleLogout} className="sketch-btn sketch-btn-outline" style={{ padding: '8px 16px', fontSize: '0.82rem' }}>
+              <LogOut size={14} /> Logout
+            </button>
           </div>
-          <button
-            onClick={handleLogout}
-            data-testid="student-logout-button"
-            className="flex items-center gap-3 px-4 py-2.5 rounded-xl text-slate-600 hover:bg-white hover:text-slate-900 transition-colors w-full"
-          >
-            <LogOut className="w-5 h-5" />
-            <span className="text-sm font-medium">Logout</span>
+
+          {/* Mobile Toggle */}
+          <button className="sk-mobile-toggle" onClick={() => setSidebarOpen(!sidebarOpen)} aria-label="Toggle menu">
+            <span className={`hamburger-line ${sidebarOpen ? 'hl-open-1' : ''}`} />
+            <span className={`hamburger-line ${sidebarOpen ? 'hl-open-2' : ''}`} />
+            <span className={`hamburger-line ${sidebarOpen ? 'hl-open-3' : ''}`} />
           </button>
         </div>
-      </aside>
 
-      <main className="flex-1 md:ml-64 lg:ml-72 min-h-screen flex flex-col">
-        <header className="student-top-header sticky top-0 z-20 px-4 md:px-8 py-3 md:py-4 flex items-center justify-between border-b border-blue-100">
-          <div>
-            <p className="text-xs uppercase tracking-[0.16em] text-blue-700">PlacementHub</p>
-            <h2 className="text-lg md:text-xl font-semibold text-blue-950" style={{ fontFamily: 'Outfit' }}>Student Workspace</h2>
+        {/* Mobile Menu */}
+        <div className={`sk-mobile-menu ${sidebarOpen ? 'sk-mobile-open' : ''}`}>
+          {sidebarItems.map((item) => (
+            <NavLink key={item.path} to={item.path} className="sk-mobile-link" onClick={() => setSidebarOpen(false)}>
+              {item.label}
+            </NavLink>
+          ))}
+          <div className="sk-mobile-actions">
+            <button onClick={handleLogout} className="sketch-btn sketch-btn-outline" style={{ width: '100%', justifyContent: 'center' }}>
+              <LogOut size={14} /> Logout
+            </button>
           </div>
-          <button
-            onClick={() => setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'))}
-            className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-blue-100 text-blue-900 hover:bg-blue-200 transition-colors active:scale-[0.97]"
-          >
-            {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
-            <span className="text-sm font-medium">{theme === 'dark' ? 'Light Mode' : 'Dark Mode'}</span>
-          </button>
-        </header>
+        </div>
+      </header>
 
-        <div className="flex-1">
+      {/* ═══ BODY ═══ */}
+      <div style={{ display: 'flex', flex: 1 }}>
+        {/* Sidebar */}
+        <aside className="sk-sidebar">
+          <nav style={{ padding: '1.5rem 1rem', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+            {sidebarItems.map((item) => {
+              const Icon = item.icon;
+              return (
+                <NavLink
+                  key={item.path}
+                  to={item.path}
+                  data-testid={`student-nav-${item.label.toLowerCase().replace(/\s+/g, '-')}`}
+                  className={({ isActive }) => `sk-sidebar-item ${isActive ? 'sk-sidebar-item-active' : ''}`}
+                >
+                  <Icon size={18} />
+                  <span>{item.label}</span>
+                </NavLink>
+              );
+            })}
+          </nav>
+
+          <div style={{ padding: '1rem', borderTop: '2px dashed var(--sk-ink-muted)', marginTop: 'auto' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px', borderRadius: '10px', border: '1.5px solid var(--sk-ink)', background: 'var(--sk-cream)', marginBottom: '8px' }}>
+              <div style={{ width: 36, height: 36, borderRadius: '50%', background: 'var(--sk-accent)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: '0.85rem' }}>
+                {user?.name?.[0] || 'S'}
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <p style={{ margin: 0, fontSize: '0.85rem', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{user?.name}</p>
+                <p style={{ margin: 0, fontSize: '0.72rem', color: 'var(--sk-ink-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{user?.email}</p>
+              </div>
+            </div>
+            <button onClick={handleLogout} data-testid="student-logout-button" className="sk-sidebar-item" style={{ width: '100%', border: 'none', background: 'none', cursor: 'pointer' }}>
+              <LogOut size={18} /> <span>Logout</span>
+            </button>
+          </div>
+        </aside>
+
+        {/* Main Content */}
+        <main style={{ flex: 1, minHeight: '100%', background: 'var(--sk-cream)' }}>
           <Outlet />
-        </div>
-
-        <footer className="student-site-footer mt-auto border-t border-blue-100 px-4 md:px-8 py-4 text-xs text-blue-800/80 flex flex-col md:flex-row items-start md:items-center justify-between gap-2">
-          <span>PlacementHub Student Portal</span>
-          <span>Build your roadmap. Track progress. Crack placements.</span>
-        </footer>
-      </main>
+          <footer style={{ padding: '1.5rem 2rem', borderTop: '1px dashed var(--sk-ink-muted)', textAlign: 'center', fontSize: '0.78rem', color: 'var(--sk-ink-muted)' }}>
+            Sankalp Student Portal — Build your roadmap. Track progress. Crack placements.
+          </footer>
+        </main>
+      </div>
     </div>
   );
 }

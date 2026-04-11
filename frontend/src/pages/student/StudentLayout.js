@@ -5,6 +5,7 @@ import {
   LayoutDashboard, Building2, Map, TrendingUp, User, LogOut, ChevronDown,
   GraduationCap, Target, Brain, BarChart3, Compass, BookOpen, HelpCircle,
 } from 'lucide-react';
+import MockInterviewMascot from '../../components/MockInterviewMascot';
 import '../LandingPage.css';
 
 const sidebarItems = [
@@ -172,6 +173,9 @@ export default function StudentLayout() {
           </footer>
         </main>
       </div>
+
+      {/* AI Mock Interview Mascot — Bottom Right Corner */}
+      <MockInterviewMascot />
     </div>
   );
 }

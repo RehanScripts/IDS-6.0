@@ -41,7 +41,7 @@ export default function StudentDashboard() {
   const [slideDirection, setSlideDirection] = useState('next');
   const [jdCompany, setJdCompany] = useState(null);
 
-  const openAssessment = (companyId) => navigate(`/student/assessment?company=${companyId}`);
+  const openCompanyRoadmapFlow = (companyId) => navigate(`/student/companies?company=${companyId}&generate=1`);
   const nearestDaysLeft = roadmaps.length ? Math.min(...roadmaps.map((r) => r.daysRemaining)) : 0;
   const openCompanyJD = (company) => { if (company?.jdDataUrl) { window.open(company.jdDataUrl, '_blank', 'noopener,noreferrer'); return; } setJdCompany(company); };
 
@@ -125,9 +125,18 @@ export default function StudentDashboard() {
             <img
               src={(INDUSTRY_SLIDES[highlighted.industry] || INDUSTRY_SLIDES.Engineering).image}
               alt={`${highlighted.company_name} banner`}
-              style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', opacity: 0.2 }}
+              style={{
+                position: 'absolute', top: 0, left: 0, width: '50%', height: '100%',
+                objectFit: 'cover', opacity: 0.85,
+              }}
             />
-            <div style={{ position: 'relative', zIndex: 2, padding: '2rem' }}>
+            <div style={{
+              position: 'absolute', right: 0, top: 0, width: '50%', height: '100%',
+              background: 'var(--sk-cream-light)', borderLeft: '2px solid var(--sk-ink)', zIndex: 1,
+            }} />
+            <div style={{
+              position: 'relative', zIndex: 2, padding: '2rem', width: '50%', marginLeft: 'auto',
+            }}>
               <p style={{ fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.2em', color: 'var(--sk-accent)', fontWeight: 700, marginBottom: '0.75rem' }}>Campus Placement Spotlight</p>
               <h3 style={{ fontFamily: 'var(--sk-font-display)', fontSize: 'clamp(1.5rem, 3vw, 2.2rem)', fontWeight: 700, margin: '0 0 0.5rem', color: 'var(--sk-ink)' }}>{highlighted.company_name}</h3>
               <p style={{ fontSize: '0.95rem', color: 'var(--sk-ink-light)', margin: '0 0 1rem' }}>{highlighted.role}</p>
@@ -141,7 +150,7 @@ export default function StudentDashboard() {
 
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
                 <button onClick={() => openCompanyJD(highlighted)} className="sketch-btn sketch-btn-outline" style={{ padding: '8px 20px', fontSize: '0.85rem' }}>View JD</button>
-                <button onClick={() => openAssessment(highlighted.id)} className="sketch-btn sketch-btn-primary" style={{ padding: '8px 20px', fontSize: '0.85rem' }}>Generate Roadmap <ArrowRight size={14} /></button>
+                <button onClick={() => openCompanyRoadmapFlow(highlighted.id)} className="sketch-btn sketch-btn-primary" style={{ padding: '8px 20px', fontSize: '0.85rem' }}>Generate Roadmap <ArrowRight size={14} /></button>
               </div>
             </div>
 
@@ -203,7 +212,7 @@ export default function StudentDashboard() {
                   <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}><CalendarClock size={12} />{company.date}</span>
                   <span>{Math.max(0, Math.floor((new Date(company.date) - new Date()) / (1000 * 60 * 60 * 24)))} days left</span>
                 </div>
-                <button onClick={() => openAssessment(company.id)} data-testid={`prepare-button-${idx}`}
+                <button onClick={() => openCompanyRoadmapFlow(company.id)} data-testid={`prepare-button-${idx}`}
                   className="sketch-btn sketch-btn-primary" style={{ width: '100%', justifyContent: 'center', padding: '10px', fontSize: '0.82rem', marginBottom: '6px' }}>
                   Generate Roadmap <ArrowRight size={14} />
                 </button>

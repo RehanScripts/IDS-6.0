@@ -16,12 +16,16 @@ from starlette.middleware.cors import CORSMiddleware
 import os
 import logging
 import uuid
+import requests
+import smtplib
+from urllib.parse import quote
 from pydantic import BaseModel, Field, EmailStr
 from typing import Any, List, Optional
 from datetime import datetime, timezone, timedelta
 import bcrypt
 import jwt
 import secrets
+from email.message import EmailMessage
 from pypdf import PdfReader
 from docx import Document
 from supabase import Client, create_client
@@ -37,6 +41,8 @@ except Exception:
 SUPABASE_URL = os.environ.get("SUPABASE_URL")
 SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY")
 SUPABASE_SERVICE_ROLE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
+OCR_SPACE_API_KEY = os.environ.get("OCR_SPACE_API_KEY", "").strip()
+OCR_SPACE_API_URL = os.environ.get("OCR_SPACE_API_URL", "https://api.ocr.space/parse/image")
 
 supabase_service: Optional[Client] = None
 if SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY:
@@ -265,15 +271,50 @@ class LoginRequest(BaseModel):
 class StudentProfileUpdateRequest(BaseModel):
     about: str = Field(min_length=1, max_length=2000)
 
+class QueryForwardRequest(BaseModel):
+    name: str = Field(min_length=1, max_length=120)
+    email: EmailStr
+    message: str = Field(min_length=5, max_length=5000)
+
 SKILL_KEYWORDS = [
     "python", "java", "c++", "javascript", "react", "node", "sql", "mongodb",
     "machine learning", "data analysis", "excel", "power bi", "autocad", "solidworks",
     "ansys", "matlab", "communication", "leadership", "teamwork", "problem solving",
 ]
 
+def _extract_text_via_ocr_space(file_name: str, file_bytes: bytes) -> str:
+    if not OCR_SPACE_API_KEY:
+        return ""
+    try:
+        files = {
+            "filename": (file_name or "resume", file_bytes),
+        }
+        data = {
+            "language": "eng",
+            "isOverlayRequired": "false",
+            "OCREngine": "2",
+            "scale": "true",
+        }
+        headers = {"apikey": OCR_SPACE_API_KEY}
+        response = requests.post(OCR_SPACE_API_URL, files=files, data=data, headers=headers, timeout=30)
+        response.raise_for_status()
+        payload = response.json() or {}
+        if payload.get("IsErroredOnProcessing"):
+            return ""
+        parsed = payload.get("ParsedResults") or []
+        chunks = [str(item.get("ParsedText", "")).strip() for item in parsed if item.get("ParsedText")]
+        return "\n".join(chunks).strip()
+    except Exception:
+        return ""
+
 def _extract_text_from_resume(file_name: str, file_bytes: bytes, content_type: str) -> str:
     file_name = (file_name or "").lower()
     content_type = (content_type or "").lower()
+
+    # OCR.Space is the primary extractor; local parsers are a reliability fallback.
+    ocr_text = _extract_text_via_ocr_space(file_name, file_bytes)
+    if ocr_text:
+        return ocr_text
 
     if file_name.endswith(".pdf") or "pdf" in content_type:
         try:
@@ -301,9 +342,11 @@ def _extract_text_from_resume(file_name: str, file_bytes: bytes, content_type: s
     if (file_name.endswith(".png") or file_name.endswith(".jpg") or file_name.endswith(".jpeg") or "image" in content_type) and pytesseract and Image:
         try:
             image = Image.open(io.BytesIO(file_bytes))
-            return pytesseract.image_to_string(image).strip()
+            text = pytesseract.image_to_string(image).strip()
+            if text:
+                return text
         except Exception:
-            return ""
+            pass
 
     return ""
 
@@ -333,6 +376,51 @@ def _nlp_resume_insights(text: str) -> dict:
         "summary": summary,
         "text_preview": (text or "")[:800],
     }
+
+def _send_query_email(name: str, sender_email: str, message: str) -> None:
+    recipient = os.environ.get("ADMIN_QUERY_EMAIL", "").strip()
+    smtp_host = os.environ.get("SMTP_HOST", "").strip()
+    smtp_port = int(os.environ.get("SMTP_PORT", "587") or "587")
+    smtp_user = os.environ.get("SMTP_USER", "").strip()
+    smtp_password = os.environ.get("SMTP_PASSWORD", "")
+    smtp_from = (os.environ.get("SMTP_FROM", "") or smtp_user).strip()
+
+    if not recipient:
+        raise RuntimeError("ADMIN_QUERY_EMAIL is not configured")
+    if not smtp_host:
+        raise RuntimeError("SMTP_HOST is not configured")
+    if not smtp_from:
+        raise RuntimeError("SMTP_FROM or SMTP_USER must be configured")
+
+    email_body = (
+        f"A new user query was submitted from Sankalp landing page.\n\n"
+        f"Name: {name}\n"
+        f"Email: {sender_email}\n\n"
+        f"Message:\n{message.strip()}\n"
+    )
+
+    mail = EmailMessage()
+    mail["Subject"] = f"Sankalp Query from {name}"
+    # Preserve SMTP-delivery reliability while showing the user's email as sender context.
+    mail["From"] = f"{name} <{sender_email}>"
+    mail["Sender"] = smtp_from
+    mail["To"] = recipient
+    mail["Reply-To"] = sender_email
+    mail.set_content(email_body)
+
+    with smtplib.SMTP(smtp_host, smtp_port, timeout=20) as server:
+        server.ehlo()
+        if smtp_password:
+            server.starttls()
+            server.ehlo()
+            server.login(smtp_user, smtp_password)
+        server.send_message(mail)
+
+def _build_query_mailto(name: str, sender_email: str, message: str) -> str:
+    recipient = os.environ.get("ADMIN_QUERY_EMAIL", "").strip() or "aasuryavanshi370724@kkwagh.edu.in"
+    subject = quote(f"Query from {name}")
+    body = quote(f"Name: {name}\nEmail: {sender_email}\n\nMessage:\n{message.strip()}")
+    return f"mailto:{recipient}?subject={subject}&body={body}"
 
 @api_router.post("/auth/register")
 async def register(input: RegisterRequest, response: Response):
@@ -513,6 +601,19 @@ async def login(input: LoginRequest, response: Response):
         "resume_content_type": user.get("resume_content_type"),
         "resume_insights": user.get("resume_insights"),
     }
+
+@api_router.post("/public/query")
+async def submit_public_query(input: QueryForwardRequest):
+    try:
+        _send_query_email(input.name.strip(), input.email.lower(), input.message)
+        return {"message": "Query sent successfully", "delivery": "smtp"}
+    except Exception as err:
+        logger.error("Failed to forward query email: %s", err)
+        return {
+            "message": "Mail service unavailable, using email-client fallback.",
+            "delivery": "mailto_fallback",
+            "fallbackMailto": _build_query_mailto(input.name.strip(), input.email.lower(), input.message),
+        }
 
 @api_router.post("/auth/logout")
 async def logout(response: Response):
@@ -944,6 +1045,299 @@ async def update_progress(input: TaskUpdate, request: Request):
     )
     
     return {"message": "Progress updated"}
+
+# ══════════════════════════════════════════════════════════════════════════════
+# AI MOCK INTERVIEW — Adapted from TalentTalk's interview system
+# Uses Google Gemini API for LLM-powered interview conversations
+# ══════════════════════════════════════════════════════════════════════════════
+
+import google.generativeai as genai
+
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
+if GEMINI_API_KEY:
+    genai.configure(api_key=GEMINI_API_KEY)
+
+# In-memory storage for interview sessions
+_interview_sessions: dict[str, dict] = {}
+
+INTERVIEW_SYSTEM_PROMPT = """You are an AI interviewer named Sankalp Buddy, a friendly and professional mock interview assistant for college students preparing for placements.
+
+You are conducting a {mode} mock interview for a {position} position at {company_name}.
+
+Your goal is to assess the candidate's technical skills, problem-solving abilities, communication skills, and experience relevant to the position.
+
+RULES:
+1. Start by introducing yourself warmly and asking the candidate to introduce themselves.
+2. After the introduction, ask about their relevant projects or experience.
+3. Then ask {num_of_q} technical questions related to the position, one at a time.
+4. For each answer, if the answer is too vague or incomplete, ask up to {num_of_follow_up} follow-up question(s) to probe deeper.
+5. If asked any irrelevant question, respond with: "Let's stay focused on the interview. Could you please answer the question?"
+6. Keep responses concise but encouraging. Give brief feedback on answers when appropriate.
+7. After all questions are done, say exactly: "Thank you, that's it for today! You did great. Let me prepare your evaluation."
+8. Do NOT generate the evaluation yourself. Just end with the above phrase.
+9. Ask ONLY ONE question at a time. Wait for the candidate's response before asking the next.
+10. Keep track of which question number you are on.
+
+IMPORTANT: You MUST maintain a {mode} tone throughout the interview. Be encouraging and supportive while being thorough.
+
+Begin the interview now by introducing yourself."""
+
+EVALUATION_PROMPT = """You are an expert interview evaluator. Analyze the following mock interview transcript and provide a detailed evaluation.
+
+The interview was for a **{position}** position at **{company_name}**.
+
+**Interview Transcript:**
+{transcript}
+
+Provide your evaluation in the following JSON format (return ONLY valid JSON, no markdown):
+{{
+  "overall_score": <number 1-100>,
+  "summary": "<2-3 sentence overall assessment>",
+  "strengths": ["<strength 1>", "<strength 2>", ...],
+  "improvements": ["<area for improvement 1>", "<area for improvement 2>", ...],
+  "question_scores": [
+    {{
+      "question": "<the question asked>",
+      "score": <number 1-10>,
+      "feedback": "<specific feedback for this answer>"
+    }}
+  ],
+  "communication_score": <number 1-10>,
+  "technical_score": <number 1-10>,
+  "confidence_score": <number 1-10>,
+  "recommendation": "<one of: 'Excellent - Ready for interviews', 'Good - Minor improvements needed', 'Average - Practice more', 'Needs Work - Focus on fundamentals'>"
+}}"""
+
+
+class InterviewStartRequest(BaseModel):
+    position: str = "Software Developer"
+    company_name: str = "Tech Company"
+    mode: str = "friendly"  # friendly, formal, technical
+    num_of_q: int = 3
+    num_of_follow_up: int = 1
+
+
+class InterviewMessageRequest(BaseModel):
+    session_id: str
+    message: str
+
+
+class InterviewEvaluateRequest(BaseModel):
+    session_id: str
+
+
+@api_router.post("/student/mock-interview/start")
+async def start_mock_interview(input: InterviewStartRequest, request: Request):
+    """Start a new mock interview session"""
+    user = await get_current_user(request)
+    if user["role"] != "student":
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    if not GEMINI_API_KEY:
+        raise HTTPException(status_code=503, detail="Gemini API key not configured. Please add GEMINI_API_KEY to your .env file.")
+
+    session_id = f"interview_{secrets.token_urlsafe(12)}"
+
+    system_prompt = INTERVIEW_SYSTEM_PROMPT.format(
+        mode=input.mode,
+        position=input.position,
+        company_name=input.company_name,
+        num_of_q=input.num_of_q,
+        num_of_follow_up=input.num_of_follow_up,
+    )
+
+    try:
+        model = genai.GenerativeModel(
+            model_name="gemini-2.0-flash",
+            system_instruction=system_prompt,
+        )
+        chat = model.start_chat(history=[])
+
+        # Get the initial greeting from the interviewer
+        response = chat.send_message("Start the interview. Introduce yourself and ask the first question.")
+
+        initial_message = response.text
+
+        _interview_sessions[session_id] = {
+            "chat": chat,
+            "model": model,
+            "system_prompt": system_prompt,
+            "position": input.position,
+            "company_name": input.company_name,
+            "mode": input.mode,
+            "num_of_q": input.num_of_q,
+            "num_of_follow_up": input.num_of_follow_up,
+            "user_id": user["id"],
+            "messages": [
+                {"role": "interviewer", "content": initial_message}
+            ],
+            "started_at": datetime.now(timezone.utc).isoformat(),
+            "status": "in_progress",
+        }
+
+        return {
+            "session_id": session_id,
+            "message": initial_message,
+            "status": "in_progress",
+        }
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to start interview: {str(e)}")
+
+
+@api_router.post("/student/mock-interview/message")
+async def send_interview_message(input: InterviewMessageRequest, request: Request):
+    """Send a message in the mock interview"""
+    user = await get_current_user(request)
+    if user["role"] != "student":
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    session = _interview_sessions.get(input.session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="Interview session not found")
+
+    if session["user_id"] != user["id"]:
+        raise HTTPException(status_code=403, detail="Not your interview session")
+
+    if session["status"] != "in_progress":
+        raise HTTPException(status_code=400, detail="Interview has already ended")
+
+    try:
+        chat = session["chat"]
+        response = chat.send_message(input.message)
+        ai_response = response.text
+
+        session["messages"].append({"role": "candidate", "content": input.message})
+        session["messages"].append({"role": "interviewer", "content": ai_response})
+
+        # Check if interview has ended
+        is_ended = "that's it for today" in ai_response.lower()
+        if is_ended:
+            session["status"] = "completed"
+
+        return {
+            "message": ai_response,
+            "status": session["status"],
+            "is_ended": is_ended,
+        }
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to process message: {str(e)}")
+
+
+@api_router.post("/student/mock-interview/evaluate")
+async def evaluate_mock_interview(input: InterviewEvaluateRequest, request: Request):
+    """Evaluate a completed mock interview"""
+    user = await get_current_user(request)
+    if user["role"] != "student":
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    session = _interview_sessions.get(input.session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="Interview session not found")
+
+    if session["user_id"] != user["id"]:
+        raise HTTPException(status_code=403, detail="Not your interview session")
+
+    # Build transcript
+    transcript_lines = []
+    for msg in session["messages"]:
+        role_label = "AI Interviewer" if msg["role"] == "interviewer" else "Candidate"
+        transcript_lines.append(f"{role_label}: {msg['content']}")
+    transcript = "\n\n".join(transcript_lines)
+
+    eval_prompt = EVALUATION_PROMPT.format(
+        position=session["position"],
+        company_name=session["company_name"],
+        transcript=transcript,
+    )
+
+    try:
+        eval_model = genai.GenerativeModel(model_name="gemini-2.0-flash")
+        eval_response = eval_model.generate_content(eval_prompt)
+        eval_text = eval_response.text
+
+        # Try to parse JSON from the response
+        import json as json_module
+        # Clean up markdown code fences if present
+        cleaned = eval_text.strip()
+        if cleaned.startswith("```json"):
+            cleaned = cleaned[7:]
+        if cleaned.startswith("```"):
+            cleaned = cleaned[3:]
+        if cleaned.endswith("```"):
+            cleaned = cleaned[:-3]
+        cleaned = cleaned.strip()
+
+        try:
+            evaluation = json_module.loads(cleaned)
+        except json_module.JSONDecodeError:
+            # If JSON parsing fails, return raw text
+            evaluation = {
+                "overall_score": 70,
+                "summary": eval_text[:500],
+                "strengths": ["Could not parse detailed evaluation"],
+                "improvements": ["Try again for detailed feedback"],
+                "question_scores": [],
+                "communication_score": 7,
+                "technical_score": 7,
+                "confidence_score": 7,
+                "recommendation": "Average - Practice more",
+            }
+
+        session["evaluation"] = evaluation
+        session["status"] = "evaluated"
+
+        return {
+            "evaluation": evaluation,
+            "transcript": session["messages"],
+        }
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to evaluate interview: {str(e)}")
+
+
+@api_router.get("/student/mock-interview/sessions")
+async def get_interview_sessions(request: Request):
+    """Get all interview sessions for the current user"""
+    user = await get_current_user(request)
+    if user["role"] != "student":
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    user_sessions = []
+    for sid, session in _interview_sessions.items():
+        if session["user_id"] == user["id"]:
+            user_sessions.append({
+                "session_id": sid,
+                "position": session["position"],
+                "company_name": session["company_name"],
+                "mode": session["mode"],
+                "status": session["status"],
+                "started_at": session["started_at"],
+                "message_count": len(session["messages"]),
+                "evaluation": session.get("evaluation"),
+            })
+
+    return sorted(user_sessions, key=lambda x: x["started_at"], reverse=True)
+
+
+@api_router.delete("/student/mock-interview/{session_id}")
+async def end_mock_interview(session_id: str, request: Request):
+    """End and clean up an interview session"""
+    user = await get_current_user(request)
+    if user["role"] != "student":
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    session = _interview_sessions.get(session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    if session["user_id"] != user["id"]:
+        raise HTTPException(status_code=403, detail="Not your interview session")
+
+    del _interview_sessions[session_id]
+    return {"message": "Interview session ended"}
+
 
 app.include_router(api_router)
 

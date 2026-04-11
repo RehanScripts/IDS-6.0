@@ -24,6 +24,8 @@ import {
   Minus,
 } from 'lucide-react';
 
+const API_BASE_URL = (process.env.REACT_APP_API_URL || 'http://127.0.0.1:8000').replace(/\/$/, '');
+
 /* ─── Data ─── */
 const serviceCards = [
   {
@@ -322,6 +324,7 @@ export default function LandingPage() {
   const [openFaq, setOpenFaq] = useState(null);
   const [queryForm, setQueryForm] = useState({ name: '', email: '', message: '' });
   const [queryStatus, setQueryStatus] = useState('');
+  const [querySending, setQuerySending] = useState(false);
 
   const [heroRef, heroInView] = useInView(0.1);
   const [servicesRef, servicesInView] = useInView(0.1);
@@ -329,12 +332,41 @@ export default function LandingPage() {
   const [faqRef, faqInView] = useInView(0.1);
   const [aboutRef, aboutInView] = useInView(0.1);
 
-  const handleQuerySubmit = (e) => {
+  const handleQuerySubmit = async (e) => {
     e.preventDefault();
-    const mailtoLink = `mailto:aasuryavanshi370724@kkwagh.edu.in?subject=Query from ${queryForm.name}&body=${encodeURIComponent(`Name: ${queryForm.name}\nEmail: ${queryForm.email}\n\nMessage:\n${queryForm.message}`)}`;
-    window.location.href = mailtoLink;
-    setQueryStatus('Redirecting to your email client...');
-    setTimeout(() => setQueryStatus(''), 4000);
+    if (querySending) return;
+
+    setQuerySending(true);
+    setQueryStatus('Sending your message...');
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/public/query`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: queryForm.name.trim(),
+          email: queryForm.email.trim(),
+          message: queryForm.message.trim(),
+        }),
+      });
+
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(payload?.detail || payload?.error || 'Unable to send query');
+      }
+
+      if (payload?.delivery === 'mailto_fallback' && payload?.fallbackMailto) {
+        window.location.href = payload.fallbackMailto;
+      }
+
+      setQueryStatus('Your query has been sent successfully.');
+      setQueryForm({ name: '', email: '', message: '' });
+    } catch (error) {
+      setQueryStatus(error.message || 'Unable to send query right now. Please try again later.');
+    } finally {
+      setQuerySending(false);
+      setTimeout(() => setQueryStatus(''), 5000);
+    }
   };
 
   const servicesDropdown = [
@@ -676,9 +708,9 @@ export default function LandingPage() {
                 className="sk-query-input sk-query-textarea"
               />
               <div className="sk-query-submit-row">
-                <button type="submit" className="sketch-btn sketch-btn-primary">
+                <button type="submit" className="sketch-btn sketch-btn-primary" disabled={querySending}>
                   <Send size={16} />
-                  Send Message
+                  {querySending ? 'Sending...' : 'Send Message'}
                 </button>
                 {queryStatus && <span className="sk-query-status">{queryStatus}</span>}
               </div>

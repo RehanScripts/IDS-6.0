@@ -423,12 +423,26 @@ export default function MockInterviewMascot() {
     return () => clearInterval(interval);
   }, []);
 
-  // Cleanup on unmount
-  useEffect(() => {
-    return () => {
-      stopCamera();
-      stopRecognition();
-      synthRef.current?.cancel();
+// Cleanup on unmount
+useEffect(() => {
+  const synth = synthRef.current;
+
+  return () => {
+    if (mediaStreamRef.current) {
+      mediaStreamRef.current.getTracks().forEach((track) => track.stop());
+      mediaStreamRef.current = null;
+    }
+
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
+    }
+
+    if (recognitionRef.current) {
+      recognitionRef.current.stop();
+      recognitionRef.current = null;
+    }
+
+      synth?.cancel();
     };
   }, []);
 

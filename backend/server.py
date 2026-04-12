@@ -276,16 +276,20 @@ def _cors_origin_regex() -> Optional[str]:
     if explicit_regex:
         return explicit_regex
 
+    is_production = _is_production_env()
     allow_onrender = os.environ.get("CORS_ALLOW_ONRENDER")
-    # In production deployments, allow Render-hosted frontend origins by default.
-    if allow_onrender is None:
-        if _is_production_env():
-            return r"^https://[a-z0-9-]+\.onrender\.com$"
-        return None
+    allow_vercel = os.environ.get("CORS_ALLOW_VERCEL")
 
-    if _is_truthy(allow_onrender):
-        return r"^https://[a-z0-9-]+\.onrender\.com$"
-    return None
+    patterns = []
+    # In production deployments, allow Render/Vercel-hosted frontend origins by default.
+    if (allow_onrender is None and is_production) or _is_truthy(allow_onrender):
+        patterns.append(r"[a-z0-9-]+\.onrender\.com")
+    if (allow_vercel is None and is_production) or _is_truthy(allow_vercel):
+        patterns.append(r"[a-z0-9-]+\.vercel\.app")
+
+    if not patterns:
+        return None
+    return rf"^https://(?:{'|'.join(patterns)})$"
 
 def get_jwt_secret() -> str:
     return os.environ["JWT_SECRET"]

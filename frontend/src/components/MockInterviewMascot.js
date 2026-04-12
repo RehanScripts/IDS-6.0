@@ -423,26 +423,27 @@ export default function MockInterviewMascot() {
     return () => clearInterval(interval);
   }, []);
 
-// Cleanup on unmount
-useEffect(() => {
-  const synth = synthRef.current;
 
-  return () => {
-    if (mediaStreamRef.current) {
-      mediaStreamRef.current.getTracks().forEach((track) => track.stop());
-      mediaStreamRef.current = null;
-    }
+  // Cleanup on unmount
+  useEffect(() => {
+    const currentSynth = synthRef.current;
+    const currentMediaStream = mediaStreamRef.current;
+    const currentVideo = videoRef.current;
+    const currentRecognition = recognitionRef.current;
 
-    if (videoRef.current) {
-      videoRef.current.srcObject = null;
-    }
-
-    if (recognitionRef.current) {
-      recognitionRef.current.stop();
-      recognitionRef.current = null;
-    }
-
-      synth?.cancel();
+    return () => {
+      if (currentMediaStream) {
+        currentMediaStream.getTracks().forEach((track) => track.stop());
+      }
+      if (currentVideo) {
+        currentVideo.srcObject = null;
+      }
+      if (currentRecognition) {
+        currentRecognition.stop();
+      }
+      if (currentSynth) {
+        currentSynth.cancel();
+      }
     };
   }, []);
 

@@ -2,7 +2,11 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 
 const AuthContext = createContext(null);
 const AUTH_STORAGE_KEY = 'placementhub_user';
-const API_BASE_URL = (process.env.REACT_APP_API_URL || 'http://127.0.0.1:8000').replace(/\/$/, '');
+const API_BASE_URL = (
+  process.env.REACT_APP_API_URL ||
+  process.env.REACT_APP_BACKEND_URL ||
+  'http://127.0.0.1:8000'
+).replace(/\/$/, '');
 
 export const useAuth = () => {
   const context = useContext(AuthContext);

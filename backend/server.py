@@ -186,6 +186,92 @@ api_router = APIRouter(prefix="/api")
 
 JWT_ALGORITHM = "HS256"
 
+
+def _is_truthy(value: Optional[str]) -> bool:
+    return str(value or "").strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _is_production_env() -> bool:
+    env_name = (
+        os.environ.get("ENVIRONMENT")
+        or os.environ.get("APP_ENV")
+        or os.environ.get("PYTHON_ENV")
+        or ""
+    ).strip().lower()
+    return env_name in {"prod", "production"} or bool(os.environ.get("RENDER"))
+
+
+def _cookie_settings() -> tuple[bool, str, Optional[str]]:
+    secure = _is_truthy(os.environ.get("COOKIE_SECURE")) if os.environ.get("COOKIE_SECURE") is not None else _is_production_env()
+    configured_samesite = str(os.environ.get("COOKIE_SAMESITE", "")).strip().lower()
+    if configured_samesite in {"lax", "strict", "none"}:
+        samesite = configured_samesite
+    else:
+        samesite = "none" if secure else "lax"
+
+    # Browsers require Secure when SameSite=None.
+    if samesite == "none" and not secure:
+        secure = True
+
+    cookie_domain = str(os.environ.get("COOKIE_DOMAIN", "")).strip() or None
+    return secure, samesite, cookie_domain
+
+
+def _set_auth_cookies(response: Response, access_token: str, refresh_token: str) -> None:
+    secure, samesite, cookie_domain = _cookie_settings()
+    response.set_cookie(
+        key="access_token",
+        value=access_token,
+        httponly=True,
+        secure=secure,
+        samesite=samesite,
+        max_age=900,
+        path="/",
+        domain=cookie_domain,
+    )
+    response.set_cookie(
+        key="refresh_token",
+        value=refresh_token,
+        httponly=True,
+        secure=secure,
+        samesite=samesite,
+        max_age=604800,
+        path="/",
+        domain=cookie_domain,
+    )
+
+
+def _clear_auth_cookies(response: Response) -> None:
+    _, _, cookie_domain = _cookie_settings()
+    response.delete_cookie("access_token", path="/", domain=cookie_domain)
+    response.delete_cookie("refresh_token", path="/", domain=cookie_domain)
+
+
+def _parse_cors_origins() -> list[str]:
+    raw = str(os.environ.get("CORS_ORIGINS", "")).strip()
+    if raw:
+        return [origin.strip().rstrip("/") for origin in raw.split(",") if origin.strip()]
+
+    defaults = [
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+        "https://jovita-placement-platform-94c0ae.preview.emergentagent.com",
+    ]
+    frontend_url = str(os.environ.get("FRONTEND_URL", "")).strip().rstrip("/")
+    if frontend_url:
+        defaults.append(frontend_url)
+    return defaults
+
+
+def _cors_origin_regex() -> Optional[str]:
+    explicit_regex = str(os.environ.get("CORS_ORIGIN_REGEX", "")).strip()
+    if explicit_regex:
+        return explicit_regex
+
+    if _is_truthy(os.environ.get("CORS_ALLOW_ONRENDER")):
+        return r"^https://[a-z0-9-]+\\.onrender\\.com$"
+    return None
+
 def get_jwt_secret() -> str:
     return os.environ["JWT_SECRET"]
 
@@ -454,8 +540,7 @@ async def register(input: RegisterRequest, response: Response):
     access_token = create_access_token(user_id, email)
     refresh_token = create_refresh_token(user_id)
     
-    response.set_cookie(key="access_token", value=access_token, httponly=True, secure=False, samesite="lax", max_age=900, path="/")
-    response.set_cookie(key="refresh_token", value=refresh_token, httponly=True, secure=False, samesite="lax", max_age=604800, path="/")
+    _set_auth_cookies(response, access_token, refresh_token)
     
     return {"id": user_id, "email": email, "name": input.name, "role": input.role, "branch": input.branch}
 
@@ -528,8 +613,7 @@ async def register_profile(
 
     access_token = create_access_token(user_id, normalized_email)
     refresh_token = create_refresh_token(user_id)
-    response.set_cookie(key="access_token", value=access_token, httponly=True, secure=False, samesite="lax", max_age=900, path="/")
-    response.set_cookie(key="refresh_token", value=refresh_token, httponly=True, secure=False, samesite="lax", max_age=604800, path="/")
+    _set_auth_cookies(response, access_token, refresh_token)
 
     return {
         "id": user_id,
@@ -584,8 +668,7 @@ async def login(input: LoginRequest, response: Response):
     access_token = create_access_token(user_id, email)
     refresh_token = create_refresh_token(user_id)
     
-    response.set_cookie(key="access_token", value=access_token, httponly=True, secure=False, samesite="lax", max_age=900, path="/")
-    response.set_cookie(key="refresh_token", value=refresh_token, httponly=True, secure=False, samesite="lax", max_age=604800, path="/")
+    _set_auth_cookies(response, access_token, refresh_token)
     
     return {
         "id": user_id,
@@ -617,8 +700,7 @@ async def submit_public_query(input: QueryForwardRequest):
 
 @api_router.post("/auth/logout")
 async def logout(response: Response):
-    response.delete_cookie("access_token")
-    response.delete_cookie("refresh_token")
+    _clear_auth_cookies(response)
     return {"message": "Logged out successfully"}
 
 @api_router.get("/auth/me")
@@ -1343,7 +1425,8 @@ app.include_router(api_router)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "https://jovita-placement-platform-94c0ae.preview.emergentagent.com"] if os.environ.get("CORS_ORIGINS", "*") == "*" else os.environ.get("CORS_ORIGINS", "*").split(","),
+    allow_origins=_parse_cors_origins(),
+    allow_origin_regex=_cors_origin_regex(),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

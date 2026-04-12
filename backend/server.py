@@ -248,19 +248,27 @@ def _clear_auth_cookies(response: Response) -> None:
 
 
 def _parse_cors_origins() -> list[str]:
+    def _normalize_origin(value: str) -> str:
+        return value.strip().rstrip("/")
+
+    extra_origins = []
+    for key in ("FRONTEND_URL", "FRONTEND_ORIGIN"):
+        value = str(os.environ.get(key, "")).strip()
+        if value:
+            extra_origins.append(_normalize_origin(value))
+
     raw = str(os.environ.get("CORS_ORIGINS", "")).strip()
     if raw:
-        return [origin.strip().rstrip("/") for origin in raw.split(",") if origin.strip()]
+        configured = [_normalize_origin(origin) for origin in raw.split(",") if origin.strip()]
+        # Preserve order while de-duplicating.
+        return list(dict.fromkeys([*configured, *extra_origins]))
 
     defaults = [
         "http://localhost:3000",
         "http://127.0.0.1:3000",
         "https://jovita-placement-platform-94c0ae.preview.emergentagent.com",
     ]
-    frontend_url = str(os.environ.get("FRONTEND_URL", "")).strip().rstrip("/")
-    if frontend_url:
-        defaults.append(frontend_url)
-    return defaults
+    return list(dict.fromkeys([*defaults, *extra_origins]))
 
 
 def _cors_origin_regex() -> Optional[str]:
@@ -268,8 +276,15 @@ def _cors_origin_regex() -> Optional[str]:
     if explicit_regex:
         return explicit_regex
 
-    if _is_truthy(os.environ.get("CORS_ALLOW_ONRENDER")):
-        return r"^https://[a-z0-9-]+\\.onrender\\.com$"
+    allow_onrender = os.environ.get("CORS_ALLOW_ONRENDER")
+    # In production deployments, allow Render-hosted frontend origins by default.
+    if allow_onrender is None:
+        if _is_production_env():
+            return r"^https://[a-z0-9-]+\.onrender\.com$"
+        return None
+
+    if _is_truthy(allow_onrender):
+        return r"^https://[a-z0-9-]+\.onrender\.com$"
     return None
 
 def get_jwt_secret() -> str:

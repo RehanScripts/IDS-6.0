@@ -28,6 +28,7 @@ import secrets
 from email.message import EmailMessage
 from pypdf import PdfReader
 from docx import Document
+from fpdf import FPDF
 from supabase import Client, create_client
 from postgrest.exceptions import APIError
 
@@ -185,6 +186,8 @@ app = FastAPI()
 api_router = APIRouter(prefix="/api")
 
 JWT_ALGORITHM = "HS256"
+ACCESS_TOKEN_TTL_MINUTES = int(os.environ.get("ACCESS_TOKEN_TTL_MINUTES", "60") or "60")
+REFRESH_TOKEN_TTL_DAYS = int(os.environ.get("REFRESH_TOKEN_TTL_DAYS", "7") or "7")
 
 def get_jwt_secret() -> str:
     return os.environ["JWT_SECRET"]
@@ -198,12 +201,47 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
     return bcrypt.checkpw(plain_password.encode("utf-8"), hashed_password.encode("utf-8"))
 
 def create_access_token(user_id: str, email: str) -> str:
-    payload = {"sub": user_id, "email": email, "exp": datetime.now(timezone.utc) + timedelta(minutes=15), "type": "access"}
+    payload = {
+        "sub": user_id,
+        "email": email,
+        "exp": datetime.now(timezone.utc) + timedelta(minutes=ACCESS_TOKEN_TTL_MINUTES),
+        "type": "access",
+    }
     return jwt.encode(payload, get_jwt_secret(), algorithm=JWT_ALGORITHM)
 
 def create_refresh_token(user_id: str) -> str:
-    payload = {"sub": user_id, "exp": datetime.now(timezone.utc) + timedelta(days=7), "type": "refresh"}
+    payload = {
+        "sub": user_id,
+        "exp": datetime.now(timezone.utc) + timedelta(days=REFRESH_TOKEN_TTL_DAYS),
+        "type": "refresh",
+    }
     return jwt.encode(payload, get_jwt_secret(), algorithm=JWT_ALGORITHM)
+
+def set_auth_cookies(response: Response, access_token: str, refresh_token: str) -> None:
+    response.set_cookie(
+        key="access_token",
+        value=access_token,
+        httponly=True,
+        secure=False,
+        samesite="lax",
+        max_age=ACCESS_TOKEN_TTL_MINUTES * 60,
+        path="/",
+    )
+    response.set_cookie(
+        key="refresh_token",
+        value=refresh_token,
+        httponly=True,
+        secure=False,
+        samesite="lax",
+        max_age=REFRESH_TOKEN_TTL_DAYS * 24 * 60 * 60,
+        path="/",
+    )
+
+def decode_refresh_token(refresh_token: str) -> dict[str, Any]:
+    payload = jwt.decode(refresh_token, get_jwt_secret(), algorithms=[JWT_ALGORITHM])
+    if payload.get("type") != "refresh":
+        raise HTTPException(status_code=401, detail="Invalid token type")
+    return payload
 
 def create_supabase_auth_user(email: str, password: str, metadata: Optional[dict[str, Any]] = None) -> Optional[str]:
     if supabase_service is None:
@@ -453,11 +491,18 @@ async def register(input: RegisterRequest, response: Response):
     
     access_token = create_access_token(user_id, email)
     refresh_token = create_refresh_token(user_id)
+    set_auth_cookies(response, access_token, refresh_token)
     
-    response.set_cookie(key="access_token", value=access_token, httponly=True, secure=False, samesite="lax", max_age=900, path="/")
-    response.set_cookie(key="refresh_token", value=refresh_token, httponly=True, secure=False, samesite="lax", max_age=604800, path="/")
-    
-    return {"id": user_id, "email": email, "name": input.name, "role": input.role, "branch": input.branch}
+    return {
+        "id": user_id,
+        "email": email,
+        "name": input.name,
+        "role": input.role,
+        "branch": input.branch,
+        "access_token": access_token,
+        "refresh_token": refresh_token,
+        "token_type": "Bearer",
+    }
 
 @api_router.post("/auth/register-profile")
 async def register_profile(
@@ -528,8 +573,7 @@ async def register_profile(
 
     access_token = create_access_token(user_id, normalized_email)
     refresh_token = create_refresh_token(user_id)
-    response.set_cookie(key="access_token", value=access_token, httponly=True, secure=False, samesite="lax", max_age=900, path="/")
-    response.set_cookie(key="refresh_token", value=refresh_token, httponly=True, secure=False, samesite="lax", max_age=604800, path="/")
+    set_auth_cookies(response, access_token, refresh_token)
 
     return {
         "id": user_id,
@@ -544,6 +588,9 @@ async def register_profile(
         "resume_storage_name": resume_storage_name,
         "resume_content_type": resume_content_type,
         "resume_insights": resume_insights,
+        "access_token": access_token,
+        "refresh_token": refresh_token,
+        "token_type": "Bearer",
     }
 
 @api_router.post("/auth/login")
@@ -583,9 +630,7 @@ async def login(input: LoginRequest, response: Response):
 
     access_token = create_access_token(user_id, email)
     refresh_token = create_refresh_token(user_id)
-    
-    response.set_cookie(key="access_token", value=access_token, httponly=True, secure=False, samesite="lax", max_age=900, path="/")
-    response.set_cookie(key="refresh_token", value=refresh_token, httponly=True, secure=False, samesite="lax", max_age=604800, path="/")
+    set_auth_cookies(response, access_token, refresh_token)
     
     return {
         "id": user_id,
@@ -600,6 +645,9 @@ async def login(input: LoginRequest, response: Response):
         "resume_storage_name": user.get("resume_storage_name"),
         "resume_content_type": user.get("resume_content_type"),
         "resume_insights": user.get("resume_insights"),
+        "access_token": access_token,
+        "refresh_token": refresh_token,
+        "token_type": "Bearer",
     }
 
 @api_router.post("/public/query")
@@ -620,6 +668,51 @@ async def logout(response: Response):
     response.delete_cookie("access_token")
     response.delete_cookie("refresh_token")
     return {"message": "Logged out successfully"}
+
+@api_router.post("/auth/refresh")
+async def refresh_auth_session(request: Request, response: Response):
+    refresh_token = request.cookies.get("refresh_token")
+    if not refresh_token:
+        refresh_token = request.headers.get("X-Refresh-Token")
+    if not refresh_token:
+        auth_header = request.headers.get("Authorization", "")
+        if auth_header.startswith("Bearer "):
+            refresh_token = auth_header[7:]
+    if not refresh_token:
+        raise HTTPException(status_code=401, detail="No refresh token")
+
+    try:
+        payload = decode_refresh_token(refresh_token)
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(status_code=401, detail="Refresh token expired")
+    except jwt.InvalidTokenError:
+        raise HTTPException(status_code=401, detail="Invalid refresh token")
+
+    user_id = str(payload.get("sub") or "")
+    if not user_id:
+        raise HTTPException(status_code=401, detail="Invalid refresh token")
+
+    if user_id == "mock_tpo_id":
+        email = "tpo@college.edu"
+    elif user_id == "mock_student_id":
+        email = "student@college.edu"
+    else:
+        if db is None:
+            raise HTTPException(status_code=401, detail="Database not connected")
+        user = await db.users.find_one({"id": user_id}, {"_id": 0, "email": 1})
+        if not user or not user.get("email"):
+            raise HTTPException(status_code=401, detail="User not found")
+        email = str(user["email"])
+
+    new_access_token = create_access_token(user_id, email)
+    new_refresh_token = create_refresh_token(user_id)
+    set_auth_cookies(response, new_access_token, new_refresh_token)
+    return {
+        "message": "Session refreshed",
+        "access_token": new_access_token,
+        "refresh_token": new_refresh_token,
+        "token_type": "Bearer",
+    }
 
 @api_router.get("/auth/me")
 async def get_me(request: Request):
@@ -1057,8 +1150,14 @@ GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_
 if GEMINI_API_KEY:
     genai.configure(api_key=GEMINI_API_KEY)
 
+ASSEMBLYAI_API_KEY = (os.environ.get("ASSEMBLYAI_API_KEY") or "").strip()
+ELEVENLABS_API_KEY = (os.environ.get("ELEVENLABS_API_KEY") or "").strip()
+ELEVENLABS_VOICE_ID = (os.environ.get("ELEVENLABS_VOICE_ID") or "").strip()
+
 # In-memory storage for interview sessions
 _interview_sessions: dict[str, dict] = {}
+INTERVIEW_REPORTS_DIR = ROOT_DIR / "generated_reports"
+INTERVIEW_REPORTS_DIR.mkdir(exist_ok=True)
 
 INTERVIEW_SYSTEM_PROMPT = """You are an AI interviewer named Sankalp Buddy, a friendly and professional mock interview assistant for college students preparing for placements.
 
@@ -1108,6 +1207,246 @@ Provide your evaluation in the following JSON format (return ONLY valid JSON, no
   "recommendation": "<one of: 'Excellent - Ready for interviews', 'Good - Minor improvements needed', 'Average - Practice more', 'Needs Work - Focus on fundamentals'>"
 }}"""
 
+REPORT_WRITER_PROMPT = """You are an AI HR Report Writer. Your task is to synthesize information from a job interview transcript and its evaluation into a concise, professional report for Human Resources at {company_name}.
+The interview was for a **{position}** position.
+Your report should focus on key takeaways relevant to HR's decision-making, including:
+- Candidate's Overall Suitability
+- Strengths
+- Areas for Development/Weaknesses
+- Key Technical Skills Demonstrated
+- Problem-Solving Approach
+- Communication Skills
+- Relevant Experience Highlights
+- Recommendation
+
+Instructions:
+- Keep the report concise and professional.
+- Use only evidence from transcript and evaluation.
+- Use clear headings.
+
+Interview Transcript:
+{transcript}
+
+Evaluation Report (JSON):
+{evaluation_json}
+"""
+
+CONTEXT_EXTENSION_PROMPT = """
+
+Interview Context (strictly use only as relevant evidence):
+Resume Highlights:
+{resume_context}
+
+Candidate Preferred/Custom Questions:
+{question_context}
+
+Instructions:
+- Integrate resume context into questioning and evaluation.
+- Use custom questions naturally when they match role relevance.
+- If custom questions are missing, continue with default role-specific interview questions.
+"""
+
+
+def _clean_llm_json(text: str) -> str:
+    cleaned = (text or "").strip()
+    if cleaned.startswith("```json"):
+        cleaned = cleaned[7:]
+    if cleaned.startswith("```"):
+        cleaned = cleaned[3:]
+    if cleaned.endswith("```"):
+        cleaned = cleaned[:-3]
+    return cleaned.strip()
+
+
+def _safe_pdf_text(text: str) -> str:
+    # FPDF default font expects latin-1; replace unsupported characters safely.
+    return (text or "").encode("latin-1", "replace").decode("latin-1")
+
+
+def _generate_pdf_report(report_text: str, filename: str) -> str:
+    pdf_path = INTERVIEW_REPORTS_DIR / filename
+    pdf = FPDF()
+    pdf.add_page()
+    pdf.set_auto_page_break(auto=True, margin=15)
+    pdf.set_font("Arial", size=12)
+
+    for line in _safe_pdf_text(report_text).split("\n"):
+        pdf.multi_cell(0, 8, line)
+
+    pdf.output(str(pdf_path))
+    return str(pdf_path)
+
+
+def _build_fallback_questions(position: str, num_of_q: int) -> list[str]:
+    base = [
+        f"What core skills are most important for a {position} role, and how have you practiced them?",
+        "Describe a challenging bug or technical issue you solved recently. What was your debugging process?",
+        "How do you ensure code quality, readability, and maintainability in your projects?",
+        "Explain a project where you collaborated with others. What was your contribution and impact?",
+        "If you had to optimize a slow feature, how would you identify bottlenecks and validate improvements?",
+        "How do you prepare for technical interviews and communicate your problem-solving approach clearly?",
+    ]
+    return base[: max(1, min(num_of_q, len(base)))]
+
+
+def _extract_custom_questions(raw_text: str) -> list[str]:
+    if not raw_text:
+        return []
+    lines = [ln.strip(" -*\t") for ln in raw_text.splitlines()]
+    cleaned = [ln for ln in lines if ln and len(ln) > 4]
+    return cleaned[:10]
+
+
+def _build_interview_prompt_with_context(base_prompt: str, session_context: dict[str, Any]) -> str:
+    resume_context = (session_context.get("resume_text") or "").strip()
+    if not resume_context:
+        resume_context = "No resume uploaded."
+    else:
+        resume_context = resume_context[:2500]
+
+    custom_questions = session_context.get("custom_questions") or []
+    if custom_questions:
+        question_context = "\n".join(f"- {q}" for q in custom_questions)
+    else:
+        question_context = "No custom questions uploaded."
+
+    return base_prompt + CONTEXT_EXTENSION_PROMPT.format(
+        resume_context=resume_context,
+        question_context=question_context,
+    )
+
+
+def _merge_questions(default_questions: list[str], custom_questions: list[str], limit: int) -> list[str]:
+    merged: list[str] = []
+    for q in custom_questions:
+        q_clean = q.strip()
+        if q_clean and q_clean not in merged:
+            merged.append(q_clean)
+    for q in default_questions:
+        q_clean = q.strip()
+        if q_clean and q_clean not in merged:
+            merged.append(q_clean)
+    return merged[: max(1, min(limit, len(merged) if merged else 1))]
+
+
+def _fallback_opening(mode: str, position: str, company_name: str) -> str:
+    tone = {
+        "friendly": "friendly and encouraging",
+        "formal": "professional and structured",
+        "technical": "technical and rigorous",
+    }.get(mode, "professional")
+    return (
+        f"Hi! I'm Sankalp Buddy, your {tone} interviewer for the {position} role at {company_name}. "
+        "Please introduce yourself briefly, and highlight one project most relevant to this role."
+    )
+
+
+def _fallback_next_message(session: dict, candidate_message: str) -> tuple[str, bool]:
+    candidate_turns = session.get("candidate_turns", 0) + 1
+    session["candidate_turns"] = candidate_turns
+    questions = session.get("fallback_questions", [])
+
+    # Turn 1: ask project deep-dive, then move to technical questions.
+    if candidate_turns == 1:
+        return (
+            "Thanks for the introduction. Tell me about one project where you solved a meaningful problem: "
+            "what was the context, your approach, and measurable outcome?",
+            False,
+        )
+
+    tech_index = candidate_turns - 2
+    if 0 <= tech_index < len(questions):
+        return (f"Question {tech_index + 1}: {questions[tech_index]}", False)
+
+    return ("Thank you, that's it for today! You did great. Let me prepare your evaluation.", True)
+
+
+def _fallback_evaluation(session: dict) -> dict[str, Any]:
+    candidate_answers = [m.get("content", "") for m in session.get("messages", []) if m.get("role") == "candidate"]
+    interviewer_questions = [m.get("content", "") for m in session.get("messages", []) if m.get("role") == "interviewer"]
+
+    avg_len = 0
+    if candidate_answers:
+        avg_len = sum(len(a.strip()) for a in candidate_answers) / len(candidate_answers)
+
+    technical_score = 6 if avg_len < 120 else 7 if avg_len < 250 else 8
+    communication_score = 6 if avg_len < 80 else 7 if avg_len < 220 else 8
+    confidence_score = 7 if len(candidate_answers) >= 3 else 6
+    overall = int(round((technical_score * 0.45 + communication_score * 0.35 + confidence_score * 0.20) * 10))
+
+    if overall >= 85:
+        recommendation = "Excellent - Ready for interviews"
+    elif overall >= 70:
+        recommendation = "Good - Minor improvements needed"
+    elif overall >= 55:
+        recommendation = "Average - Practice more"
+    else:
+        recommendation = "Needs Work - Focus on fundamentals"
+
+    question_scores = []
+    q_idx = 0
+    for q in interviewer_questions:
+        if q.startswith("Question") or "project" in q.lower() or "introduce" in q.lower():
+            q_idx += 1
+            per_q = max(1, min(10, technical_score + (1 if q_idx <= 2 else 0)))
+            question_scores.append(
+                {
+                    "question": q,
+                    "score": per_q,
+                    "feedback": "Answer showed relevant structure. Add more measurable impact and deeper technical trade-offs.",
+                }
+            )
+
+    return {
+        "overall_score": overall,
+        "summary": "The candidate demonstrated a reasonable interview baseline with clear responses. Greater technical depth and quantified outcomes would improve readiness.",
+        "strengths": [
+            "Maintained coherent responses throughout the interview",
+            "Covered practical experience with understandable structure",
+            "Showed consistent willingness to explain decisions",
+        ],
+        "improvements": [
+            "Provide deeper technical trade-off analysis",
+            "Quantify impact using metrics wherever possible",
+            "Use more concise STAR-style examples for behavioral clarity",
+        ],
+        "question_scores": question_scores,
+        "communication_score": communication_score,
+        "technical_score": technical_score,
+        "confidence_score": confidence_score,
+        "recommendation": recommendation,
+    }
+
+
+def _fallback_report(session: dict, evaluation: dict[str, Any], transcript: str) -> str:
+    return (
+        f"Candidate Summary\n"
+        f"Interview for {session.get('position')} at {session.get('company_name')}. "
+        f"Overall score: {evaluation.get('overall_score')}/100.\n\n"
+        f"Strengths\n- " + "\n- ".join(evaluation.get("strengths", [])) + "\n\n"
+        f"Areas for Development\n- " + "\n- ".join(evaluation.get("improvements", [])) + "\n\n"
+        f"Communication and Technical Assessment\n"
+        f"Communication: {evaluation.get('communication_score')}/10\n"
+        f"Technical: {evaluation.get('technical_score')}/10\n"
+        f"Confidence: {evaluation.get('confidence_score')}/10\n\n"
+        f"Recommendation\n{evaluation.get('recommendation')}\n"
+    )
+
+
+def _render_session_context_for_eval(session: dict[str, Any]) -> str:
+    context = session.get("context") or {}
+    resume_text = (context.get("resume_text") or "").strip()
+    resume_name = context.get("resume_file_name") or "N/A"
+    custom_questions = context.get("custom_questions") or []
+    question_block = "\n".join(f"- {q}" for q in custom_questions) if custom_questions else "None"
+    resume_block = resume_text[:2000] if resume_text else "None"
+    return (
+        "\n\nAdditional Candidate Context:\n"
+        f"Resume File: {resume_name}\n"
+        f"Resume Extract:\n{resume_block}\n"
+        f"Custom Questions:\n{question_block}\n"
+    )
+
 
 class InterviewStartRequest(BaseModel):
     position: str = "Software Developer"
@@ -1126,6 +1465,15 @@ class InterviewEvaluateRequest(BaseModel):
     session_id: str
 
 
+class InterviewQuestionsRequest(BaseModel):
+    questions: List[str] = Field(default_factory=list)
+
+
+class InterviewTextToSpeechRequest(BaseModel):
+    text: str
+    voice_id: Optional[str] = None
+
+
 @api_router.post("/student/mock-interview/start")
 async def start_mock_interview(input: InterviewStartRequest, request: Request):
     """Start a new mock interview session"""
@@ -1138,13 +1486,20 @@ async def start_mock_interview(input: InterviewStartRequest, request: Request):
 
     session_id = f"interview_{secrets.token_urlsafe(12)}"
 
-    system_prompt = INTERVIEW_SYSTEM_PROMPT.format(
+    base_prompt = INTERVIEW_SYSTEM_PROMPT.format(
         mode=input.mode,
         position=input.position,
         company_name=input.company_name,
         num_of_q=input.num_of_q,
         num_of_follow_up=input.num_of_follow_up,
     )
+
+    context_payload = {
+        "resume_text": "",
+        "resume_file_name": None,
+        "custom_questions": [],
+    }
+    system_prompt = _build_interview_prompt_with_context(base_prompt, context_payload)
 
     try:
         model = genai.GenerativeModel(
@@ -1161,6 +1516,7 @@ async def start_mock_interview(input: InterviewStartRequest, request: Request):
         _interview_sessions[session_id] = {
             "chat": chat,
             "model": model,
+            "base_prompt": base_prompt,
             "system_prompt": system_prompt,
             "position": input.position,
             "company_name": input.company_name,
@@ -1173,16 +1529,47 @@ async def start_mock_interview(input: InterviewStartRequest, request: Request):
             ],
             "started_at": datetime.now(timezone.utc).isoformat(),
             "status": "in_progress",
+            "context": context_payload,
+            "provider": "gemini",
         }
 
         return {
             "session_id": session_id,
             "message": initial_message,
             "status": "in_progress",
+            "provider": "gemini",
         }
 
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to start interview: {str(e)}")
+        # Fallback: keep interview available even when Gemini API is rate-limited/unavailable.
+        initial_message = _fallback_opening(input.mode, input.position, input.company_name)
+        _interview_sessions[session_id] = {
+            "chat": None,
+            "model": None,
+            "base_prompt": base_prompt,
+            "system_prompt": system_prompt,
+            "position": input.position,
+            "company_name": input.company_name,
+            "mode": input.mode,
+            "num_of_q": input.num_of_q,
+            "num_of_follow_up": input.num_of_follow_up,
+            "user_id": user["id"],
+            "messages": [{"role": "interviewer", "content": initial_message}],
+            "fallback_questions": _build_fallback_questions(input.position, input.num_of_q),
+            "candidate_turns": 0,
+            "started_at": datetime.now(timezone.utc).isoformat(),
+            "status": "in_progress",
+            "provider": "fallback",
+            "fallback_reason": str(e),
+            "context": context_payload,
+        }
+        return {
+            "session_id": session_id,
+            "message": initial_message,
+            "status": "in_progress",
+            "provider": "fallback",
+            "fallback_reason": "Gemini temporarily unavailable; running local interview engine.",
+        }
 
 
 @api_router.post("/student/mock-interview/message")
@@ -1203,15 +1590,18 @@ async def send_interview_message(input: InterviewMessageRequest, request: Reques
         raise HTTPException(status_code=400, detail="Interview has already ended")
 
     try:
-        chat = session["chat"]
-        response = chat.send_message(input.message)
-        ai_response = response.text
+        if session.get("provider") == "fallback":
+            ai_response, is_ended = _fallback_next_message(session, input.message)
+        else:
+            chat = session["chat"]
+            response = chat.send_message(input.message)
+            ai_response = response.text
+            is_ended = "that's it for today" in ai_response.lower()
 
         session["messages"].append({"role": "candidate", "content": input.message})
         session["messages"].append({"role": "interviewer", "content": ai_response})
 
         # Check if interview has ended
-        is_ended = "that's it for today" in ai_response.lower()
         if is_ended:
             session["status"] = "completed"
 
@@ -1219,10 +1609,254 @@ async def send_interview_message(input: InterviewMessageRequest, request: Reques
             "message": ai_response,
             "status": session["status"],
             "is_ended": is_ended,
+            "provider": session.get("provider", "gemini"),
         }
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to process message: {str(e)}")
+
+
+@api_router.post("/student/mock-interview/{session_id}/context/resume")
+async def upload_mock_interview_resume_context(session_id: str, request: Request, resume: UploadFile = File(...)):
+    """Upload resume context for an interview session"""
+    user = await get_current_user(request)
+    if user["role"] != "student":
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    session = _interview_sessions.get(session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="Interview session not found")
+    if session["user_id"] != user["id"]:
+        raise HTTPException(status_code=403, detail="Not your interview session")
+
+    file_bytes = await resume.read()
+    if not file_bytes:
+        raise HTTPException(status_code=400, detail="Resume file is empty")
+
+    extracted_text = _extract_text_from_resume(resume.filename or "", file_bytes, resume.content_type or "")
+    if not extracted_text.strip():
+        extracted_text = "Resume uploaded but text extraction returned empty content."
+
+    context = session.setdefault("context", {"resume_text": "", "resume_file_name": None, "custom_questions": []})
+    context["resume_text"] = extracted_text
+    context["resume_file_name"] = resume.filename or "resume"
+
+    custom_questions = context.get("custom_questions") or []
+    merged_fallback = _merge_questions(
+        _build_fallback_questions(session.get("position", "Software Developer"), session.get("num_of_q", 3)),
+        custom_questions,
+        session.get("num_of_q", 3),
+    )
+    session["fallback_questions"] = merged_fallback
+
+    if session.get("provider") == "gemini" and session.get("chat") is not None:
+        context_msg = (
+            "Use this candidate resume context for upcoming interview questions and follow-ups. "
+            "Acknowledge internally and continue interview naturally.\n\n"
+            f"Resume file: {context.get('resume_file_name')}\n"
+            f"Resume text:\n{extracted_text[:2500]}"
+        )
+        try:
+            session["chat"].send_message(context_msg)
+        except Exception:
+            pass
+
+    return {
+        "message": "Resume context uploaded",
+        "resume_file_name": context["resume_file_name"],
+        "resume_text_preview": extracted_text[:500],
+        "status": session.get("status", "in_progress"),
+    }
+
+
+@api_router.post("/student/mock-interview/{session_id}/context/questions")
+async def upload_mock_interview_questions_context(session_id: str, input: InterviewQuestionsRequest, request: Request):
+    """Upload custom interview questions for an interview session"""
+    user = await get_current_user(request)
+    if user["role"] != "student":
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    session = _interview_sessions.get(session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="Interview session not found")
+    if session["user_id"] != user["id"]:
+        raise HTTPException(status_code=403, detail="Not your interview session")
+
+    cleaned_questions = []
+    for q in input.questions:
+        q_clean = (q or "").strip()
+        if q_clean:
+            cleaned_questions.append(q_clean)
+    cleaned_questions = cleaned_questions[:10]
+
+    context = session.setdefault("context", {"resume_text": "", "resume_file_name": None, "custom_questions": []})
+    context["custom_questions"] = cleaned_questions
+
+    fallback_defaults = _build_fallback_questions(session.get("position", "Software Developer"), session.get("num_of_q", 3))
+    session["fallback_questions"] = _merge_questions(fallback_defaults, cleaned_questions, session.get("num_of_q", 3))
+
+    if session.get("provider") == "gemini" and session.get("chat") is not None and cleaned_questions:
+        context_msg = (
+            "Use these custom candidate-provided interview questions where relevant. "
+            "Ask one at a time and keep the interview flow natural.\n\n"
+            + "\n".join(f"- {q}" for q in cleaned_questions)
+        )
+        try:
+            session["chat"].send_message(context_msg)
+        except Exception:
+            pass
+
+    return {
+        "message": "Custom question context uploaded",
+        "custom_questions": cleaned_questions,
+        "status": session.get("status", "in_progress"),
+    }
+
+
+@api_router.post("/student/mock-interview/{session_id}/context/questions-file")
+async def upload_mock_interview_questions_file_context(session_id: str, request: Request, questions_file: UploadFile = File(...)):
+    """Upload custom questions from a text file"""
+    user = await get_current_user(request)
+    if user["role"] != "student":
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    session = _interview_sessions.get(session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="Interview session not found")
+    if session["user_id"] != user["id"]:
+        raise HTTPException(status_code=403, detail="Not your interview session")
+
+    raw = (await questions_file.read()).decode("utf-8", errors="ignore")
+    parsed = _extract_custom_questions(raw)
+    if not parsed:
+        raise HTTPException(status_code=400, detail="No valid questions found in uploaded file")
+
+    return await upload_mock_interview_questions_context(
+        session_id=session_id,
+        input=InterviewQuestionsRequest(questions=parsed),
+        request=request,
+    )
+
+
+@api_router.get("/student/mock-interview/{session_id}/context")
+async def get_mock_interview_context(session_id: str, request: Request):
+    """Get stored interview context for a session"""
+    user = await get_current_user(request)
+    if user["role"] != "student":
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    session = _interview_sessions.get(session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="Interview session not found")
+    if session["user_id"] != user["id"]:
+        raise HTTPException(status_code=403, detail="Not your interview session")
+
+    context = session.get("context") or {}
+    return {
+        "resume_file_name": context.get("resume_file_name"),
+        "resume_text_preview": (context.get("resume_text") or "")[:500],
+        "custom_questions": context.get("custom_questions") or [],
+    }
+
+
+@api_router.post("/student/mock-interview/speech-to-text")
+async def mock_interview_speech_to_text(request: Request, audio: UploadFile = File(...)):
+    """Convert interview speech audio to text (AssemblyAI provider)"""
+    user = await get_current_user(request)
+    if user["role"] != "student":
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    if not ASSEMBLYAI_API_KEY:
+        raise HTTPException(status_code=503, detail="AssemblyAI API key not configured")
+
+    audio_bytes = await audio.read()
+    if not audio_bytes:
+        raise HTTPException(status_code=400, detail="Audio file is empty")
+
+    try:
+        upload_response = requests.post(
+            "https://api.assemblyai.com/v2/upload",
+            headers={"authorization": ASSEMBLYAI_API_KEY, "content-type": "application/octet-stream"},
+            data=audio_bytes,
+            timeout=45,
+        )
+        upload_response.raise_for_status()
+        upload_url = (upload_response.json() or {}).get("upload_url")
+        if not upload_url:
+            raise HTTPException(status_code=502, detail="AssemblyAI upload failed")
+
+        transcript_response = requests.post(
+            "https://api.assemblyai.com/v2/transcript",
+            headers={"authorization": ASSEMBLYAI_API_KEY, "content-type": "application/json"},
+            json={"audio_url": upload_url},
+            timeout=45,
+        )
+        transcript_response.raise_for_status()
+        transcript_id = (transcript_response.json() or {}).get("id")
+        if not transcript_id:
+            raise HTTPException(status_code=502, detail="AssemblyAI transcript init failed")
+
+        for _ in range(30):
+            poll_response = requests.get(
+                f"https://api.assemblyai.com/v2/transcript/{transcript_id}",
+                headers={"authorization": ASSEMBLYAI_API_KEY},
+                timeout=20,
+            )
+            poll_response.raise_for_status()
+            payload = poll_response.json() or {}
+            status = payload.get("status")
+            if status == "completed":
+                return {"text": payload.get("text", ""), "provider": "assemblyai"}
+            if status == "error":
+                raise HTTPException(status_code=502, detail=payload.get("error") or "AssemblyAI transcription error")
+            await asyncio.sleep(1)
+
+        raise HTTPException(status_code=504, detail="Speech transcription timed out")
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Speech-to-text failed: {str(e)}")
+
+
+@api_router.post("/student/mock-interview/text-to-speech")
+async def mock_interview_text_to_speech(input: InterviewTextToSpeechRequest, request: Request):
+    """Convert text to speech audio (ElevenLabs provider)"""
+    user = await get_current_user(request)
+    if user["role"] != "student":
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    text = (input.text or "").strip()
+    if not text:
+        raise HTTPException(status_code=400, detail="Text is required")
+
+    if not ELEVENLABS_API_KEY:
+        raise HTTPException(status_code=503, detail="ElevenLabs API key not configured")
+
+    voice_id = input.voice_id or ELEVENLABS_VOICE_ID
+    if not voice_id:
+        raise HTTPException(status_code=400, detail="No ElevenLabs voice configured")
+
+    try:
+        tts_response = requests.post(
+            f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}",
+            headers={
+                "xi-api-key": ELEVENLABS_API_KEY,
+                "accept": "audio/mpeg",
+                "content-type": "application/json",
+            },
+            json={
+                "text": text[:1800],
+                "model_id": "eleven_multilingual_v2",
+                "voice_settings": {"stability": 0.4, "similarity_boost": 0.75},
+            },
+            timeout=60,
+        )
+        tts_response.raise_for_status()
+        return Response(content=tts_response.content, media_type="audio/mpeg")
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Text-to-speech failed: {str(e)}")
 
 
 @api_router.post("/student/mock-interview/evaluate")
@@ -1251,50 +1885,83 @@ async def evaluate_mock_interview(input: InterviewEvaluateRequest, request: Requ
         company_name=session["company_name"],
         transcript=transcript,
     )
+    eval_prompt = eval_prompt + _render_session_context_for_eval(session)
 
     try:
-        eval_model = genai.GenerativeModel(model_name="gemini-2.0-flash")
-        eval_response = eval_model.generate_content(eval_prompt)
-        eval_text = eval_response.text
-
-        # Try to parse JSON from the response
         import json as json_module
-        # Clean up markdown code fences if present
-        cleaned = eval_text.strip()
-        if cleaned.startswith("```json"):
-            cleaned = cleaned[7:]
-        if cleaned.startswith("```"):
-            cleaned = cleaned[3:]
-        if cleaned.endswith("```"):
-            cleaned = cleaned[:-3]
-        cleaned = cleaned.strip()
+        if session.get("provider") == "fallback":
+            evaluation = _fallback_evaluation(session)
+            report_text = _fallback_report(session, evaluation, transcript)
+        else:
+            eval_model = genai.GenerativeModel(model_name="gemini-2.0-flash")
+            eval_response = eval_model.generate_content(eval_prompt)
+            eval_text = eval_response.text
 
-        try:
-            evaluation = json_module.loads(cleaned)
-        except json_module.JSONDecodeError:
-            # If JSON parsing fails, return raw text
-            evaluation = {
-                "overall_score": 70,
-                "summary": eval_text[:500],
-                "strengths": ["Could not parse detailed evaluation"],
-                "improvements": ["Try again for detailed feedback"],
-                "question_scores": [],
-                "communication_score": 7,
-                "technical_score": 7,
-                "confidence_score": 7,
-                "recommendation": "Average - Practice more",
-            }
+            cleaned = _clean_llm_json(eval_text)
+            try:
+                evaluation = json_module.loads(cleaned)
+            except json_module.JSONDecodeError:
+                evaluation = {
+                    "overall_score": 70,
+                    "summary": eval_text[:500],
+                    "strengths": ["Could not parse detailed evaluation"],
+                    "improvements": ["Try again for detailed feedback"],
+                    "question_scores": [],
+                    "communication_score": 7,
+                    "technical_score": 7,
+                    "confidence_score": 7,
+                    "recommendation": "Average - Practice more",
+                }
+
+            report_prompt = REPORT_WRITER_PROMPT.format(
+                company_name=session["company_name"],
+                position=session["position"],
+                transcript=transcript,
+                evaluation_json=json_module.dumps(evaluation, ensure_ascii=False, indent=2),
+            )
+            report_response = eval_model.generate_content(report_prompt)
+            report_text = (report_response.text or "").strip()
+
+        pdf_filename = f"HR_Report_{session['company_name']}_{session['position']}_{input.session_id}.pdf"
+        pdf_filename = re.sub(r"[^a-zA-Z0-9_.-]", "_", pdf_filename)
+        pdf_path = _generate_pdf_report(report_text, pdf_filename)
 
         session["evaluation"] = evaluation
+        session["report"] = report_text
+        session["pdf_path"] = pdf_path
         session["status"] = "evaluated"
 
         return {
             "evaluation": evaluation,
             "transcript": session["messages"],
+            "report": report_text,
+            "pdf_download_url": f"/api/student/mock-interview/{input.session_id}/report/pdf",
+            "provider": session.get("provider", "gemini"),
         }
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to evaluate interview: {str(e)}")
+
+
+@api_router.get("/student/mock-interview/{session_id}/report/pdf")
+async def download_mock_interview_report_pdf(session_id: str, request: Request):
+    """Download generated HR report PDF for an interview session"""
+    user = await get_current_user(request)
+    if user["role"] != "student":
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    session = _interview_sessions.get(session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="Interview session not found")
+
+    if session["user_id"] != user["id"]:
+        raise HTTPException(status_code=403, detail="Not your interview session")
+
+    pdf_path = session.get("pdf_path")
+    if not pdf_path or not Path(pdf_path).exists():
+        raise HTTPException(status_code=404, detail="Report PDF not found. Please run evaluation first.")
+
+    return FileResponse(path=pdf_path, media_type="application/pdf", filename=Path(pdf_path).name)
 
 
 @api_router.get("/student/mock-interview/sessions")
@@ -1341,9 +2008,17 @@ async def end_mock_interview(session_id: str, request: Request):
 
 app.include_router(api_router)
 
+default_cors_origins = [
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+    "http://localhost:4000",
+    "http://127.0.0.1:4000",
+    "https://jovita-placement-platform-94c0ae.preview.emergentagent.com",
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "https://jovita-placement-platform-94c0ae.preview.emergentagent.com"] if os.environ.get("CORS_ORIGINS", "*") == "*" else os.environ.get("CORS_ORIGINS", "*").split(","),
+    allow_origins=default_cors_origins if os.environ.get("CORS_ORIGINS", "*") == "*" else [origin.strip() for origin in os.environ.get("CORS_ORIGINS", "*").split(",") if origin.strip()],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

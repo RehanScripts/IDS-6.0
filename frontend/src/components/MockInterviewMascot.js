@@ -9,7 +9,88 @@ import {
 import { useAuth } from '../contexts/AuthContext';
 import './MockInterviewMascot.css';
 
-const API_BASE_URL = (process.env.REACT_APP_API_URL || 'http://127.0.0.1:8000').replace(/\/$/, '');
+const resolveApiBaseUrl = () => {
+  const configured = (process.env.REACT_APP_API_URL || 'http://localhost:8000').trim().replace(/\/$/, '');
+  try {
+    const parsed = new URL(configured);
+    const appHost = window.location.hostname;
+    if ((appHost === 'localhost' && parsed.hostname === '127.0.0.1') || (appHost === '127.0.0.1' && parsed.hostname === 'localhost')) {
+      parsed.hostname = appHost;
+    }
+    return parsed.toString().replace(/\/$/, '');
+  } catch (_error) {
+    return configured;
+  }
+};
+
+const API_BASE_URL = resolveApiBaseUrl();
+const ACCESS_TOKEN_STORAGE_KEY = 'placementhub_access_token';
+const REFRESH_TOKEN_STORAGE_KEY = 'placementhub_refresh_token';
+
+const readAccessToken = () => localStorage.getItem(ACCESS_TOKEN_STORAGE_KEY) || null;
+const readRefreshToken = () => localStorage.getItem(REFRESH_TOKEN_STORAGE_KEY) || null;
+
+const withAuthHeaders = (headers = {}) => {
+  const token = readAccessToken();
+  if (!token) return headers;
+  return {
+    ...headers,
+    Authorization: `Bearer ${token}`,
+  };
+};
+
+const safeParseError = async (response) => {
+  try {
+    return await response.json();
+  } catch (error) {
+    return { detail: 'Request failed' };
+  }
+};
+
+const refreshSession = async () => {
+  const refreshToken = readRefreshToken();
+  const headers = refreshToken ? { 'X-Refresh-Token': refreshToken } : {};
+  const response = await fetch(`${API_BASE_URL}/api/auth/refresh`, {
+    method: 'POST',
+    credentials: 'include',
+    headers,
+  });
+
+  if (response.ok) {
+    try {
+      const data = await response.json();
+      if (data?.access_token) localStorage.setItem(ACCESS_TOKEN_STORAGE_KEY, data.access_token);
+      if (data?.refresh_token) localStorage.setItem(REFRESH_TOKEN_STORAGE_KEY, data.refresh_token);
+    } catch (_error) {
+      // Ignore parsing issues and rely on cookie-based flow if present.
+    }
+  }
+
+  return response.ok;
+};
+
+const apiFetchWithRefresh = async (path, options = {}, allowRetry = true) => {
+  const initialHeaders = withAuthHeaders(options.headers || {});
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    credentials: 'include',
+    ...options,
+    headers: initialHeaders,
+  });
+
+  if (response.status === 401 && allowRetry) {
+    const refreshed = await refreshSession();
+    if (refreshed) {
+      const retryHeaders = withAuthHeaders(options.headers || {});
+      return fetch(`${API_BASE_URL}${path}`, {
+        credentials: 'include',
+        ...options,
+        headers: retryHeaders,
+      });
+    }
+  }
+
+  return response;
+};
 
 // ═══ Speech Recognition Setup ═══
 const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -21,6 +102,8 @@ function InterviewSetup({ onStart, loading }) {
   const [mode, setMode] = useState('friendly');
   const [numQ, setNumQ] = useState(3);
   const [interviewType, setInterviewType] = useState('video'); // text, voice, video
+  const [resumeFile, setResumeFile] = useState(null);
+  const [customQuestions, setCustomQuestions] = useState('');
 
   const popularRoles = [
     'Software Developer', 'Data Analyst', 'Web Developer',
@@ -133,6 +216,29 @@ function InterviewSetup({ onStart, loading }) {
           <span>Quick (2)</span>
           <span>Full (8)</span>
         </div>
+
+        <label className="mi-label" style={{ marginTop: '12px' }}>
+          <Briefcase size={14} />
+          <span>Resume Context (optional)</span>
+        </label>
+        <input
+          type="file"
+          accept=".pdf,.doc,.docx,.txt,.png,.jpg,.jpeg"
+          className="mi-input"
+          onChange={(e) => setResumeFile(e.target.files?.[0] || null)}
+        />
+
+        <label className="mi-label" style={{ marginTop: '12px' }}>
+          <Target size={14} />
+          <span>Custom Interview Questions (optional)</span>
+        </label>
+        <textarea
+          className="mi-input"
+          rows={4}
+          placeholder={'One question per line\nExample:\nExplain CAP theorem in your own words\nDesign a scalable chat service'}
+          value={customQuestions}
+          onChange={(e) => setCustomQuestions(e.target.value)}
+        />
       </div>
 
       <button
@@ -144,6 +250,8 @@ function InterviewSetup({ onStart, loading }) {
           num_of_q: numQ,
           num_of_follow_up: 1,
           interviewType,
+          resumeFile,
+          customQuestions,
         })}
         disabled={loading || !position.trim()}
       >
@@ -182,7 +290,7 @@ function ScoreRing({ score, size = 80, label, color }) {
 }
 
 // ─── Evaluation Results ───
-function EvaluationResults({ evaluation, onNewInterview, onClose }) {
+function EvaluationResults({ evaluation, report, pdfUrl, onNewInterview, onClose }) {
   if (!evaluation) return null;
 
   const scoreColor = (score, max = 100) => {
@@ -231,6 +339,13 @@ function EvaluationResults({ evaluation, onNewInterview, onClose }) {
         <p>{evaluation.summary}</p>
       </div>
 
+      {report && (
+        <div className="mi-eval-section">
+          <h4><BarChart2 size={16} style={{ color: '#1E3A8A' }} /> HR Report</h4>
+          <div className="mi-report-text" style={{ whiteSpace: 'pre-wrap' }}>{report}</div>
+        </div>
+      )}
+
       {evaluation.strengths?.length > 0 && (
         <div className="mi-eval-section">
           <h4><CheckCircle size={16} style={{ color: '#2E7D32' }} /> Strengths</h4>
@@ -271,6 +386,11 @@ function EvaluationResults({ evaluation, onNewInterview, onClose }) {
         <button className="mi-start-btn" onClick={onNewInterview}>
           <RefreshCw size={16} /> Try Another Interview
         </button>
+        {pdfUrl && (
+          <button className="mi-close-eval-btn" onClick={() => window.open(pdfUrl, '_blank', 'noopener,noreferrer')}>
+            Download PDF
+          </button>
+        )}
         <button className="mi-close-eval-btn" onClick={onClose}>
           Close
         </button>
@@ -387,6 +507,8 @@ export default function MockInterviewMascot() {
   const [loading, setLoading] = useState(false);
   const [sendingMessage, setSendingMessage] = useState(false);
   const [evaluation, setEvaluation] = useState(null);
+  const [report, setReport] = useState('');
+  const [pdfDownloadUrl, setPdfDownloadUrl] = useState('');
   const [evaluating, setEvaluating] = useState(false);
   const [pulseActive, setPulseActive] = useState(true);
   const [interviewType, setInterviewType] = useState('text');
@@ -423,27 +545,28 @@ export default function MockInterviewMascot() {
     return () => clearInterval(interval);
   }, []);
 
+// Cleanup on unmount
+useEffect(() => {
+  const synth = synthRef.current;
+  const videoNode = videoRef.current;
+  const recognition = recognitionRef.current;
 
-  // Cleanup on unmount
-  useEffect(() => {
-    const currentSynth = synthRef.current;
-    const currentMediaStream = mediaStreamRef.current;
-    const currentVideo = videoRef.current;
-    const currentRecognition = recognitionRef.current;
+  return () => {
+    if (mediaStreamRef.current) {
+      mediaStreamRef.current.getTracks().forEach((track) => track.stop());
+      mediaStreamRef.current = null;
+    }
 
-    return () => {
-      if (currentMediaStream) {
-        currentMediaStream.getTracks().forEach((track) => track.stop());
-      }
-      if (currentVideo) {
-        currentVideo.srcObject = null;
-      }
-      if (currentRecognition) {
-        currentRecognition.stop();
-      }
-      if (currentSynth) {
-        currentSynth.cancel();
-      }
+    if (videoNode) {
+      videoNode.srcObject = null;
+    }
+
+    if (recognition) {
+      recognition.stop();
+      recognitionRef.current = null;
+    }
+
+      synth?.cancel();
     };
   }, []);
 
@@ -625,9 +748,8 @@ export default function MockInterviewMascot() {
     setIsExpanded(shouldExpand);
 
     try {
-      const response = await fetch(`${API_BASE_URL}/api/student/mock-interview/start`, {
+      const response = await apiFetchWithRefresh('/api/student/mock-interview/start', {
         method: 'POST',
-        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           position: config.position,
@@ -639,12 +761,34 @@ export default function MockInterviewMascot() {
       });
 
       if (!response.ok) {
-        const err = await response.json();
+        const err = await safeParseError(response);
         alert(err.detail || 'Failed to start interview');
         return;
       }
 
       const data = await response.json();
+
+      if (config.resumeFile) {
+        const formData = new FormData();
+        formData.append('resume', config.resumeFile);
+        await apiFetchWithRefresh(`/api/student/mock-interview/${data.session_id}/context/resume`, {
+          method: 'POST',
+          body: formData,
+        });
+      }
+
+      const customQuestions = (config.customQuestions || '')
+        .split('\n')
+        .map((q) => q.trim())
+        .filter(Boolean);
+      if (customQuestions.length > 0) {
+        await apiFetchWithRefresh(`/api/student/mock-interview/${data.session_id}/context/questions`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ questions: customQuestions }),
+        });
+      }
+
       setSessionId(data.session_id);
       setMessages([{ role: 'interviewer', content: data.message }]);
       setView('interview');
@@ -680,15 +824,14 @@ export default function MockInterviewMascot() {
     }
 
     try {
-      const response = await fetch(`${API_BASE_URL}/api/student/mock-interview/message`, {
+      const response = await apiFetchWithRefresh('/api/student/mock-interview/message', {
         method: 'POST',
-        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ session_id: sessionId, message: textToSend }),
       });
 
       if (!response.ok) {
-        const err = await response.json();
+        const err = await safeParseError(response);
         setMessages((prev) => [...prev, { role: 'interviewer', content: `⚠️ Error: ${err.detail}` }]);
         return;
       }
@@ -717,21 +860,22 @@ export default function MockInterviewMascot() {
   const evaluateInterview = async () => {
     setEvaluating(true);
     try {
-      const response = await fetch(`${API_BASE_URL}/api/student/mock-interview/evaluate`, {
+      const response = await apiFetchWithRefresh('/api/student/mock-interview/evaluate', {
         method: 'POST',
-        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ session_id: sessionId }),
       });
 
       if (!response.ok) {
-        const err = await response.json();
+        const err = await safeParseError(response);
         alert(err.detail || 'Failed to evaluate');
         return;
       }
 
       const data = await response.json();
       setEvaluation(data.evaluation);
+      setReport(data.report || '');
+      setPdfDownloadUrl(data.pdf_download_url ? `${API_BASE_URL}${data.pdf_download_url}` : '');
       setView('evaluation');
       setIsExpanded(false);
     } catch (err) {
@@ -749,6 +893,8 @@ export default function MockInterviewMascot() {
     setSessionId(null);
     setMessages([]);
     setEvaluation(null);
+    setReport('');
+    setPdfDownloadUrl('');
     setInputText('');
     setVoiceTranscript('');
     setIsExpanded(false);
@@ -986,6 +1132,8 @@ export default function MockInterviewMascot() {
           {view === 'evaluation' && (
             <EvaluationResults
               evaluation={evaluation}
+              report={report}
+              pdfUrl={pdfDownloadUrl}
               onNewInterview={resetInterview}
               onClose={() => setIsOpen(false)}
             />

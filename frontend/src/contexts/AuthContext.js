@@ -4,6 +4,7 @@ const AuthContext = createContext(null);
 const AUTH_STORAGE_KEY = 'placementhub_user';
 const ACCESS_TOKEN_STORAGE_KEY = 'placementhub_access_token';
 const REFRESH_TOKEN_STORAGE_KEY = 'placementhub_refresh_token';
+const PROFILE_OVERRIDES_STORAGE_KEY = 'placementhub_profile_overrides';
 
 const resolveApiBaseUrl = () => {
   const configured = (process.env.REACT_APP_API_URL || 'http://localhost:8000').trim().replace(/\/$/, '');
@@ -29,6 +30,44 @@ const readAccessTokenFromCookies = () => {
 
 const readAccessToken = () => localStorage.getItem(ACCESS_TOKEN_STORAGE_KEY) || readAccessTokenFromCookies();
 const readRefreshToken = () => localStorage.getItem(REFRESH_TOKEN_STORAGE_KEY) || null;
+
+const PROFILE_EDITABLE_KEYS = ['name', 'branch', 'college_name', 'year', 'about'];
+
+const readProfileOverrides = () => {
+  try {
+    return JSON.parse(localStorage.getItem(PROFILE_OVERRIDES_STORAGE_KEY) || '{}');
+  } catch (_error) {
+    return {};
+  }
+};
+
+const writeProfileOverrides = (value) => {
+  localStorage.setItem(PROFILE_OVERRIDES_STORAGE_KEY, JSON.stringify(value || {}));
+};
+
+const getUserOverrideKey = (data) => data?.id || data?.email;
+
+const mergeWithProfileOverrides = (data) => {
+  if (!data) return data;
+  const key = getUserOverrideKey(data);
+  if (!key) return data;
+  const overrides = readProfileOverrides();
+  return { ...data, ...(overrides[key] || {}) };
+};
+
+const persistProfileOverrides = (data, fields = {}) => {
+  const key = getUserOverrideKey(data);
+  if (!key) return;
+  const existing = readProfileOverrides();
+  const nextFields = {};
+  PROFILE_EDITABLE_KEYS.forEach((field) => {
+    if (Object.prototype.hasOwnProperty.call(fields, field) && fields[field] != null) {
+      nextFields[field] = fields[field];
+    }
+  });
+  existing[key] = { ...(existing[key] || {}), ...nextFields };
+  writeProfileOverrides(existing);
+};
 
 const refreshAuthSession = async () => {
   const storedRefreshToken = readRefreshToken();
@@ -123,9 +162,10 @@ export const AuthProvider = ({ children }) => {
       }
 
       const data = await response.json();
-      setUser(data);
-      localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(data));
-      persistTokensFromPayload(data);
+      const merged = mergeWithProfileOverrides(data);
+      setUser(merged);
+      localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(merged));
+      persistTokensFromPayload(merged);
     } catch (error) {
       const savedUser = localStorage.getItem(AUTH_STORAGE_KEY);
       if (savedUser) {
@@ -161,10 +201,11 @@ export const AuthProvider = ({ children }) => {
         return { success: false, error: formatApiErrorDetail(data?.detail) };
       }
 
-      setUser(data);
-      localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(data));
-      persistTokensFromPayload(data);
-      return { success: true, data };
+      const merged = mergeWithProfileOverrides(data);
+      setUser(merged);
+      localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(merged));
+      persistTokensFromPayload(merged);
+      return { success: true, data: merged };
     } catch (error) {
       return { success: false, error: 'Login failed. Please check backend availability.' };
     }
@@ -178,10 +219,12 @@ export const AuthProvider = ({ children }) => {
       formData.append('password', password);
       formData.append('role', role);
       if (branch) formData.append('branch', branch);
-      if (profile.resume) formData.append('resume', profile.resume);
-      if (profile.profile_pic) formData.append('profile_pic', profile.profile_pic);
+      if (profile.collegeName) formData.append('college_name', profile.collegeName);
+      if (profile.year) formData.append('year', profile.year);
+      if (profile.about) formData.append('about', profile.about);
+      if (profile.resume || profile.resumeFile) formData.append('resume', profile.resume || profile.resumeFile);
 
-      const response = await fetch(`${API_BASE_URL}/api/auth/register`, {
+      const response = await fetch(`${API_BASE_URL}/api/auth/register-profile`, {
         method: 'POST',
         credentials: 'include',
         body: formData,
@@ -192,10 +235,18 @@ export const AuthProvider = ({ children }) => {
         return { success: false, error: formatApiErrorDetail(data?.detail) };
       }
 
-      setUser(data);
-      localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(data));
-      persistTokensFromPayload(data);
-      return { success: true, data };
+      persistProfileOverrides(data, {
+        name,
+        branch,
+        college_name: profile.collegeName,
+        year: profile.year,
+        about: profile.about,
+      });
+      const merged = mergeWithProfileOverrides(data);
+      setUser(merged);
+      localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(merged));
+      persistTokensFromPayload(merged);
+      return { success: true, data: merged };
     } catch (error) {
       return { success: false, error: 'Registration failed. Please check backend availability.' };
     }
@@ -227,6 +278,10 @@ export const AuthProvider = ({ children }) => {
   };
 
   const updateProfileAbout = async (about) => {
+    return updateProfileDetails({ about });
+  };
+
+  const updateProfileDetails = async (fields = {}) => {
     try {
       const response = await fetch(`${API_BASE_URL}/api/student/profile`, {
         method: 'PATCH',
@@ -235,7 +290,7 @@ export const AuthProvider = ({ children }) => {
           ...(readAccessToken() ? { Authorization: `Bearer ${readAccessToken()}` } : {}),
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ about }),
+        body: JSON.stringify(fields),
       });
 
       const data = await response.json();
@@ -243,9 +298,11 @@ export const AuthProvider = ({ children }) => {
         return { success: false, error: formatApiErrorDetail(data?.detail) };
       }
 
-      setUser(data);
-      localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(data));
-      return { success: true, data };
+      persistProfileOverrides(data, fields);
+      const merged = mergeWithProfileOverrides(data);
+      setUser(merged);
+      localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(merged));
+      return { success: true, data: merged };
     } catch (error) {
       return { success: false, error: 'Unable to update profile right now.' };
     }
@@ -268,9 +325,10 @@ export const AuthProvider = ({ children }) => {
         return { success: false, error: formatApiErrorDetail(data?.detail) };
       }
 
-      setUser(data);
-      localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(data));
-      return { success: true, data };
+      const merged = mergeWithProfileOverrides(data);
+      setUser(merged);
+      localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(merged));
+      return { success: true, data: merged };
     } catch (error) {
       return { success: false, error: 'Unable to update resume right now.' };
     }
@@ -285,6 +343,7 @@ export const AuthProvider = ({ children }) => {
     logout,
     checkAuth,
     updateProfileAbout,
+    updateProfileDetails,
     updateProfileResume,
     apiBaseUrl: API_BASE_URL,
     getAuthToken: refreshToken,

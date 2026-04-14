@@ -37,6 +37,7 @@ export default function TPODashboard() {
   const [stats, setStats] = useState(null);
   const [skillGaps, setSkillGaps] = useState([]);
   const [readiness, setReadiness] = useState([]);
+  const [userProgress, setUserProgress] = useState([]);
   const [placementTrend, setPlacementTrend] = useState([]);
   const [branchReadiness, setBranchReadiness] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -44,15 +45,17 @@ export default function TPODashboard() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [statsRes, skillGapsRes, readinessRes] = await Promise.all([
+        const [statsRes, skillGapsRes, readinessRes, userProgressRes] = await Promise.all([
           axios.get(`${process.env.REACT_APP_BACKEND_URL}/api/tpo/dashboard/stats`, { withCredentials: true }),
           axios.get(`${process.env.REACT_APP_BACKEND_URL}/api/tpo/dashboard/skill-gaps`, { withCredentials: true }),
           axios.get(`${process.env.REACT_APP_BACKEND_URL}/api/tpo/dashboard/readiness`, { withCredentials: true }),
+          axios.get(`${process.env.REACT_APP_BACKEND_URL}/api/tpo/dashboard/user-progress`, { withCredentials: true }),
         ]);
         setStats(statsRes.data); setSkillGaps(skillGapsRes.data); setReadiness(readinessRes.data);
+        setUserProgress(Array.isArray(userProgressRes.data) ? userProgressRes.data : []);
       } catch (error) {
         console.error('Failed to fetch dashboard data:', error);
-        setStats(MOCK_STATS); setSkillGaps(MOCK_SKILL_GAPS); setReadiness(MOCK_READINESS);
+        setStats(MOCK_STATS); setSkillGaps(MOCK_SKILL_GAPS); setReadiness(MOCK_READINESS); setUserProgress([]);
       } finally {
         setPlacementTrend(MOCK_TREND); setBranchReadiness(MOCK_BRANCH_READINESS); setLoading(false);
       }
@@ -70,6 +73,8 @@ export default function TPODashboard() {
   }
 
   const metricCards = [
+    { label: 'Total Users', value: stats?.total_users || 0, icon: Users, bg: '#EEF2FF', accent: '#4338CA' },
+    { label: 'Active Users (24h)', value: stats?.active_users || 0, icon: Users, bg: '#ECFDF5', accent: '#047857' },
     { label: 'Total Students', value: stats?.total_students || 0, icon: Users, bg: '#E3F2FD', accent: '#1565C0' },
     { label: 'Upcoming Companies', value: stats?.upcoming_companies || 0, icon: Building2, bg: '#E8F5E9', accent: '#2E7D32' },
     { label: 'Avg Readiness', value: `${stats?.avg_readiness_score || 0}%`, icon: TrendingUp, bg: '#FFF3E0', accent: '#E65100' },
@@ -193,6 +198,39 @@ export default function TPODashboard() {
             ))}
           </div>
         </div>
+      </div>
+
+      <div style={{ ...chartCardStyle, marginTop: '1.5rem' }} data-testid="user-progress-table">
+        <h2 style={chartTitleStyle}>Student Progress Overview</h2>
+        {userProgress.length === 0 ? (
+          <p style={{ margin: 0, color: 'var(--sk-ink-muted)', fontSize: '0.9rem' }}>No student progress data available yet.</p>
+        ) : (
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 760 }}>
+              <thead>
+                <tr>
+                  {['Name', 'Email', 'Branch', 'Readiness', 'Progress', 'Roadmaps', 'Status', 'Active'].map((head) => (
+                    <th key={head} style={{ textAlign: 'left', padding: '10px 8px', borderBottom: '2px solid var(--sk-ink)', fontSize: '0.78rem', textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--sk-ink-muted)' }}>{head}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {userProgress.map((student) => (
+                  <tr key={student.id || student.email}>
+                    <td style={{ padding: '10px 8px', borderBottom: '1px dashed var(--sk-ink-muted)', fontWeight: 600 }}>{student.name || '-'}</td>
+                    <td style={{ padding: '10px 8px', borderBottom: '1px dashed var(--sk-ink-muted)' }}>{student.email || '-'}</td>
+                    <td style={{ padding: '10px 8px', borderBottom: '1px dashed var(--sk-ink-muted)' }}>{student.branch || '-'}</td>
+                    <td style={{ padding: '10px 8px', borderBottom: '1px dashed var(--sk-ink-muted)' }}>{student.readiness_score || 0}%</td>
+                    <td style={{ padding: '10px 8px', borderBottom: '1px dashed var(--sk-ink-muted)' }}>{student.progress_percentage || 0}%</td>
+                    <td style={{ padding: '10px 8px', borderBottom: '1px dashed var(--sk-ink-muted)' }}>{student.active_roadmap || 0}</td>
+                    <td style={{ padding: '10px 8px', borderBottom: '1px dashed var(--sk-ink-muted)' }}>{student.placement_status || '-'}</td>
+                    <td style={{ padding: '10px 8px', borderBottom: '1px dashed var(--sk-ink-muted)' }}>{student.is_active ? 'Yes' : 'No'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
     </div>
   );

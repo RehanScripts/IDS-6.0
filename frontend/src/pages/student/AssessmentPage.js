@@ -20,6 +20,20 @@ const LOADING_MESSAGES = [
 ];
 
 const MINI_QUIZ_BANK = {
+  'aarti-pharmalabs-get': [
+    { skill: 'Unit Operations', question: 'For stable production scale-up, what should be validated first?', options: ['Brand logo format', 'Material and energy balance closure', 'Hiring calendar', 'Only packaging speed'], correctIndex: 1 },
+    { skill: 'Heat and Mass Transfer', question: 'Heat/mass transfer calculations are mainly used to:', options: ['Design safer and efficient process conditions', 'Prepare salary slips', 'Draft marketing copy', 'Create attendance sheets'], correctIndex: 0 },
+    { skill: 'PFD / P&ID', question: 'P&ID reading helps primarily in:', options: ['Social media planning', 'Process path and instrumentation/control understanding', 'Recruitment planning', 'Vendor billing'], correctIndex: 1 },
+    { skill: 'Electrical and Instrumentation', question: 'For GET electrical/instrumentation roles, a strong baseline is:', options: ['Control philosophy + relays/protection basics', 'Only spreadsheet formatting', 'Only coding interviews', 'Only warehouse layout'], correctIndex: 0 },
+    { skill: 'Process Safety', question: 'During hazardous process deviation, the best immediate action is:', options: ['Continue and observe', 'Apply SOP safety response and isolate risk', 'Skip reporting', 'Wait for next shift'], correctIndex: 1 }
+  ],
+  'esds-windows-admin': [
+    { skill: 'Windows Server Administration', question: 'Best first action before applying server configuration changes?', options: ['Apply immediately', 'Take backup/snapshot and define rollback', 'Disable logs', 'Skip maintenance window'], correctIndex: 1 },
+    { skill: 'Active Directory', question: 'Active Directory primarily manages:', options: ['Only IIS websites', 'Users, groups, and domain authentication', 'Hardware temperatures', 'Patch binaries'], correctIndex: 1 },
+    { skill: 'DNS / Email', question: 'If mail delivery fails after DNS change, what should you verify first?', options: ['Desktop wallpaper', 'MX/DNS records and resolver path', 'Monitor brightness', 'Keyboard layout'], correctIndex: 1 },
+    { skill: 'IIS Server', question: 'HTTP 500 on IIS is commonly investigated through:', options: ['Event Viewer + IIS logs', 'BIOS update only', 'Defrag only', 'Power cable replacement'], correctIndex: 0 },
+    { skill: 'Troubleshooting', question: 'What is the strongest troubleshooting pattern?', options: ['Random trial and error', 'Evidence -> isolate root cause -> controlled fix', 'Immediate reinstall', 'Ignore intermittent issues'], correctIndex: 1 }
+  ],
   klingelnberg: [
     { skill: 'Data Structures', question: 'Which structure is best for implementing LRU cache efficiently?', options: ['Array + sort', 'HashMap + Doubly Linked List', 'Queue only', 'Stack only'], correctIndex: 1 },
     { skill: 'JavaScript/TypeScript', question: 'What is the main benefit of TypeScript in large projects?', options: ['Faster runtime', 'Static type safety and maintainability', 'Removes need for tests', 'Smaller bundles always'], correctIndex: 1 },

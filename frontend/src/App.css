@@ -106,8 +106,77 @@ html, body, #root {
   backdrop-filter: blur(8px);
 }
 
+.student-header-inner {
+  max-width: none;
+  width: 100%;
+  margin: 0;
+  padding-left: 0.75rem;
+  padding-right: 0.75rem;
+}
+
+.student-header-inner .sk-logo {
+  margin-right: auto;
+}
+
+.student-header-inner .sk-header-actions {
+  margin-left: auto;
+}
+
 .student-site-footer {
   background: #ffffff;
+}
+
+.student-body-shell {
+  position: relative;
+  min-height: calc(100vh - var(--sk-header-height));
+}
+
+.student-sidebar-core {
+  position: fixed;
+  left: 0;
+  top: var(--sk-header-height);
+  height: calc(100vh - var(--sk-header-height));
+  z-index: 40;
+}
+
+.student-dynamic-header {
+  transition: transform 220ms ease;
+}
+
+.student-dynamic-header-show {
+  transform: translateY(0);
+}
+
+.student-dynamic-header-hide {
+  transform: translateY(-100%);
+}
+
+.student-fixed-sidebar {
+  position: sticky;
+  top: var(--sk-header-height);
+  z-index: 50;
+}
+
+.student-main-content {
+  margin-left: 240px;
+  width: calc(100% - 240px);
+}
+
+@media (max-width: 768px) {
+  .student-main-content {
+    margin-left: 0;
+    width: 100%;
+  }
+
+  .student-fixed-sidebar {
+    position: static;
+  }
+
+  .student-sidebar-core {
+    position: static;
+    top: auto;
+    height: auto;
+  }
 }
 
 .marketing-hero {

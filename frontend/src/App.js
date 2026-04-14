@@ -1,5 +1,5 @@
 import React from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { RoadmapProvider } from './contexts/RoadmapContext';
 import { Toaster } from './components/ui/sonner';
@@ -19,6 +19,7 @@ import StudentDashboard from './pages/student/StudentDashboard';
 import Companies from './pages/student/Companies';
 import AssessmentPage from './pages/student/AssessmentPage';
 import MyRoadmaps from './pages/student/MyRoadmaps';
+import AIInterviewPage from './pages/student/AIInterviewPage';
 import Progress from './pages/student/Progress';
 import Profile from './pages/student/Profile';
 import './App.css';
@@ -41,6 +42,11 @@ function RootRoute() {
   return <Navigate to={user.role === 'tpo' ? '/tpo/dashboard' : '/student/dashboard'} replace />;
 }
 
+function AssessmentRedirect() {
+  const location = useLocation();
+  return <Navigate to={`/student/assessment${location.search || ''}`} replace />;
+}
+
 function App() {
   return (
     <AuthProvider>
@@ -50,7 +56,7 @@ function App() {
             <Route path="/login" element={<LoginPage />} />
             <Route path="/register" element={<RegisterPage />} />
             <Route path="/" element={<RootRoute />} />
-            <Route path="/assessment" element={<Navigate to="/student/assessment" replace />} />
+            <Route path="/assessment" element={<AssessmentRedirect />} />
             <Route path="/roadmaps" element={<Navigate to="/student/roadmaps" replace />} />
             <Route path="/progress" element={<Navigate to="/student/progress" replace />} />
           
@@ -84,6 +90,7 @@ function App() {
               <Route path="companies" element={<Companies />} />
               <Route path="assessment" element={<AssessmentPage />} />
               <Route path="roadmaps" element={<MyRoadmaps />} />
+              <Route path="ai-interview" element={<AIInterviewPage />} />
               <Route path="progress" element={<Progress />} />
               <Route path="profile" element={<Profile />} />
             </Route>

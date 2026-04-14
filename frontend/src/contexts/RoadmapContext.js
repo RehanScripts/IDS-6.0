@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import { useAuth } from './AuthContext';
 
 const RoadmapContext = createContext(null);
 
@@ -87,6 +88,87 @@ const QUIZ_BANK = {
 };
 
 const COMPANY_QUIZ_OVERRIDES = {
+  'neilsoft-get-civil': [
+    {
+      question: 'In precast workflow, what is the most critical first check before element production?',
+      options: ['Paint shade selection', 'Drawing and bar bending schedule validation', 'Invoice approval', 'Site photography'],
+      correctIndex: 1
+    },
+    {
+      question: 'For rebar detailing, which output is used directly by fabrication teams?',
+      options: ['Mood board', 'Bar Bending Schedule (BBS)', 'Site attendance sheet', 'Material invoice'],
+      correctIndex: 1
+    },
+    {
+      question: 'Which AutoCAD practice reduces errors in civil drafting?',
+      options: ['Drawing without layers', 'Using proper layers, scale, and annotation standards', 'Avoiding dimensions', 'Exploding all blocks'],
+      correctIndex: 1
+    },
+    {
+      question: 'In engineering drawings, sectional views are mainly used to:',
+      options: ['Decorate layout', 'Show internal construction details clearly', 'Reduce file size only', 'Avoid dimensions'],
+      correctIndex: 1
+    },
+    {
+      question: 'In Excel for engineering reporting, which feature helps summarize large datasets quickly?',
+      options: ['WordArt', 'Pivot Table', 'Theme color', 'Spell check only'],
+      correctIndex: 1
+    }
+  ],
+  'aarti-pharmalabs-get': [
+    {
+      question: 'Which concept is most essential before scaling pharma unit operations?',
+      options: ['Office automation macros', 'Mass and energy balance closure', 'Only vendor manuals', 'Marketing analytics'],
+      correctIndex: 1
+    },
+    {
+      question: 'In process role screening, PFD and P&ID are mainly used for:',
+      options: ['Payroll planning', 'Process understanding and control loop interpretation', 'Website hosting', 'Sales forecasting'],
+      correctIndex: 1
+    },
+    {
+      question: 'For GET electrical role, which area is directly relevant?',
+      options: ['Relay and protection fundamentals', 'Only web UI testing', 'Chemical assay only', 'Packaging graphics'],
+      correctIndex: 0
+    },
+    {
+      question: 'A strong instrumentation baseline includes:',
+      options: ['Control philosophy and final control elements', 'HR policy drafting', 'Cloud billing APIs', 'CNC tooling only'],
+      correctIndex: 0
+    },
+    {
+      question: 'Best first response to hazardous process deviation is:',
+      options: ['Ignore and continue batch', 'Apply process safety protocol and isolate risk', 'Change schedule only', 'Skip documentation'],
+      correctIndex: 1
+    }
+  ],
+  'esds-windows-admin': [
+    {
+      question: 'Which Windows Server role is commonly used for centralized user authentication?',
+      options: ['WSUS', 'AD DS', 'IIS', 'Hyper-V'],
+      correctIndex: 1
+    },
+    {
+      question: 'If website by IP works but hostname fails, likely issue is:',
+      options: ['SMTP config', 'DNS resolution', 'CPU thermal limit', 'IIS app pool'],
+      correctIndex: 1
+    },
+    {
+      question: 'Before patching a production Windows server, best first step is:',
+      options: ['Direct reboot', 'Snapshot/backup and rollback plan', 'Disable logs', 'Turn off firewall'],
+      correctIndex: 1
+    },
+    {
+      question: 'Which utility helps inspect adapter and DNS details on Windows?',
+      options: ['diskpart', 'ipconfig /all', 'chkdsk /f', 'sfc /verifyonly'],
+      correctIndex: 1
+    },
+    {
+      question: 'What should be checked first when repeated updates fail in enterprise setup?',
+      options: ['Wallpaper policy', 'WSUS connectivity and update services', 'Mouse driver', 'Browser cache'],
+      correctIndex: 1
+    }
+  ],
   klingelnberg: [
     {
       question: 'In JavaScript, what is the output type of Promise.all([...])?',
@@ -144,6 +226,44 @@ const COMPANY_QUIZ_OVERRIDES = {
 };
 
 const COMPANY_PREP_PROFILES = {
+  'neilsoft-get-civil': {
+    focus: [
+      'Precast Detailing Fundamentals',
+      'Rebar Detailing and BBS',
+      'Engineering Drawing Interpretation',
+      'AutoCAD for Civil Engineering',
+      'Tekla Modelling Basics',
+      'QA Checks for Drawings and Detailing',
+      'Quantity and Coordination Basics',
+      'Excel for Engineering Documentation'
+    ],
+    soft: ['Structured communication', 'Detail orientation', 'Deadline discipline']
+  },
+  'aarti-pharmalabs-get': {
+    focus: [
+      'Unit Operations in Chemical Engineering',
+      'Heat and Mass Transfer',
+      'Mass and Energy Balance',
+      'Chemical Reaction Engineering Fundamentals',
+      'PFD and P&ID Interpretation',
+      'Process Optimization and Pipe Sizing',
+      'Chemical Manufacturing Safety',
+      'Electrical Fundamentals for Plant Operations',
+      'Instrumentation Basics and Control Philosophy'
+    ],
+    soft: ['Analytical problem-solving', 'Technical communication', 'Presentation clarity']
+  },
+  'esds-windows-admin': {
+    focus: [
+      'Windows Server Administration',
+      'Active Directory and Group Policy',
+      'Networking Protocols and DNS',
+      'IIS and Web Hosting Basics',
+      'OS and Hardware Troubleshooting',
+      'Virtualization and Hyper-V'
+    ],
+    soft: ['SOP writing', 'Problem-solving communication', 'Workplace communication and escalation']
+  },
   klingelnberg: {
     focus: ['Data Structures', 'JavaScript/TypeScript', 'REST API Design', 'SQL Querying', 'Debugging and Logging', 'System Basics'],
     soft: ['Stakeholder communication', 'Requirement clarification', 'Incident response updates']
@@ -548,6 +668,111 @@ const COMPANY_INTELLIGENCE = [
     eligibility: 'CS / IT / MBA, CGPA >= 6.5',
     status: 'upcoming',
     package: '5.0 LPA'
+  }),
+  createCompany({
+    id: 'esds-windows-admin',
+    domain: 'automation',
+    industry: 'IT',
+    company_name: 'ESDS',
+    role: 'Windows Server Administrator',
+    date: '2026-07-20',
+    eligibility: 'BCA / BSc IT / CS / E&TC / Any graduate with infra fundamentals, CGPA >= 6.0',
+    status: 'upcoming',
+    package: '5.5 LPA',
+    coverImage: '/images/esds-cover.png',
+    intelligence: {
+      requiredSkills: {
+        technical: ['Windows Server Administration', 'Active Directory', 'DNS / SMTP / POP3 / IMAP', 'IIS Server', 'WSUS and Antivirus', 'Virtualization and Hyper-V', 'OS and Hardware Troubleshooting', 'MySQL Basics'],
+        soft: ['SOP writing', 'Problem-solving communication', 'Workplace communication']
+      },
+      pastHiringPatterns: 'Hands-on troubleshooting and production support thinking are prioritized over theory-heavy answers.',
+      ratio: { technical: 78, soft: 22 },
+      salaryBand: 'Rs 4.5L - Rs 6.5L',
+      screeningProcess: 'Technical screen + practical troubleshooting round + HR',
+      interviewQuestions: [
+        { type: 'Technical', question: 'How do you diagnose DNS resolution failure for internal users?', answer: 'Validate client DNS settings, run nslookup tests, inspect DNS zones/forwarders, and verify service/network dependencies.' },
+        { type: 'Technical', question: 'How would you use Group Policy in a mid-size organization?', answer: 'Apply baseline security and operational policies through scoped OUs with testing before broad rollout.' },
+        { type: 'Situational', question: 'A production server suddenly slows down. What is your first response?', answer: 'Collect evidence from event logs/performance counters, isolate likely causes, and apply low-risk corrective actions with rollback readiness.' },
+        { type: 'HR', question: 'Why do you want to join ESDS as a Windows Server Administrator?', answer: 'The role matches my infrastructure skill path and offers real production exposure where I can contribute and grow quickly.' },
+        { type: 'HR', question: 'How do you document post-incident fixes?', answer: 'I prepare SOP-style notes with symptoms, root cause, exact fix steps, validation checks, and preventive controls.' }
+      ]
+    }
+  }),
+  createCompany({
+    id: 'neilsoft-get-civil',
+    domain: 'project',
+    industry: 'Engineering',
+    company_name: 'Neilsoft Ltd.',
+    role: 'Graduate Engineer Trainee (GET) - Civil (Precast & Rebar)',
+    date: '2026-08-01',
+    eligibility: 'BE/B.Tech Civil (2025 pass-out), minimum 55% in SSC/HSC/Diploma/Degree, no backlogs, no education gaps',
+    status: 'upcoming',
+    package: '3.0 LPA',
+    coverImage: '/images/neil.png',
+    intelligence: {
+      requiredSkills: {
+        technical: [
+          'Precast Detailing',
+          'Rebar Detailing and BBS',
+          'Engineering Drawing Reading',
+          'AutoCAD for Civil',
+          'Tekla Basic Modelling',
+          'MS Office and Excel Fundamentals'
+        ],
+        soft: ['Technical communication', 'Accuracy and documentation', 'Team coordination']
+      },
+      pastHiringPatterns: 'Selection emphasizes practical detailing fundamentals, drawing interpretation accuracy, and readiness to join immediately.',
+      ratio: { technical: 78, soft: 22 },
+      salaryBand: 'Rs 3.0 LPA',
+      screeningProcess: 'Online Test -> F2F Interview',
+      interviewQuestions: [
+        { type: 'Technical', question: 'How do you verify precast drawing readiness before release?', answer: 'I check dimensions, reinforcement callouts, section consistency, and coordination notes against standards before issue.' },
+        { type: 'Technical', question: 'What is your approach for accurate rebar quantity extraction?', answer: 'I validate bar marks, spacing, bends and lap rules, then cross-check the BBS against drawing sheets.' },
+        { type: 'Situational', question: 'You find a drawing mismatch near deadline. What do you do?', answer: 'I escalate with clear marked evidence, suggest corrected detail, and close the loop after approval to avoid site/fabrication errors.' },
+        { type: 'HR', question: 'Why do you want to join Neilsoft?', answer: 'Neilsoft offers strong engineering services exposure where I can apply civil fundamentals in precast and rebar projects from day one.' },
+        { type: 'HR', question: 'Are you ready for immediate joining and agreement terms?', answer: 'Yes, I am ready to join immediately and I understand the 2-year training agreement requirement.' }
+      ]
+    }
+  }),
+  createCompany({
+    id: 'aarti-pharmalabs-get',
+    domain: 'project',
+    industry: 'Pharma',
+    company_name: 'Aarti Pharmalabs',
+    role: 'Graduate Engineer Trainee (Production / Process / Electrical / Instrumentation)',
+    date: '2026-07-25',
+    eligibility: 'Engineering graduates with minimum CGPA 6.0 - 6.5',
+    status: 'upcoming',
+    package: 'Rs 3.0 LPA stipend (Year 1), Rs 4.0 LPA post-confirmation',
+    coverImage: '/images/aarti-pharmalabs-cover.png',
+    intelligence: {
+      requiredSkills: {
+        technical: [
+          'Unit Operations',
+          'Heat and Mass Transfer',
+          'Mass and Energy Balance',
+          'Reaction Engineering',
+          'PFD and P&ID Reading',
+          'Process Optimization',
+          'Pipe Sizing',
+          'Plant Electrical Fundamentals',
+          'Instrumentation and Control Basics',
+          'Process Safety'
+        ],
+        soft: ['Analytical problem-solving', 'Communication', 'Presentation']
+      },
+      pastHiringPatterns: 'Screens for fundamentals depth, process safety mindset, and practical plant troubleshooting approach.',
+      ratio: { technical: 76, soft: 24 },
+      salaryBand: 'Rs 3.0 LPA training stipend -> Rs 4.0 LPA post-confirmation',
+      screeningProcess: 'Technical screening + role-aligned interview + HR; 1-year GET program with post-confirmation bond',
+      interviewQuestions: [
+        { type: 'Technical', question: 'How do mass and energy balances improve production/process decisions?', answer: 'They quantify losses, support bottleneck diagnosis, and validate process stability before scale-up.' },
+        { type: 'Technical', question: 'How do you use P&ID during troubleshooting?', answer: 'I trace process paths, control loops, and safety interlocks to isolate probable failure points safely.' },
+        { type: 'Situational', question: 'A hazardous chemical handling deviation occurs in a shift. What do you do first?', answer: 'Follow plant safety SOP, isolate risk source, communicate escalation quickly, and document corrective action.' },
+        { type: 'HR', question: 'Why Aarti Pharmalabs GET program?', answer: 'It provides structured technical exposure across critical plant disciplines with a clear growth pathway.' },
+        { type: 'HR', question: 'How will you improve in the first training year?', answer: 'I will track daily learning against role topics, practice calculations/diagram reading, and review feedback weekly.' }
+      ]
+    }
   })
 ];
 
@@ -569,21 +794,108 @@ const RESOURCE_LIBRARY = {
   ]
 };
 
+const ESDS_RESOURCE_LIBRARY = {
+  video: [
+    { title: 'Windows Server 16 Course Part 1', url: 'https://youtu.be/MP1wXs1muws?si=qAIQ98lxroxgGRxU', source: 'YouTube' },
+    { title: 'Windows Server 16 Course Part 2', url: 'https://youtu.be/OP-rPidxZX8?si=9ivo-YoieibnkW4J', source: 'YouTube' },
+    { title: 'Windows Server 16 Course Part 3', url: 'https://youtu.be/aM_umAWcEXI?si=ooYBBGACjbcc-zob', source: 'YouTube' },
+    { title: 'Windows Server 16 Course Part 4', url: 'https://youtu.be/fiPMNzSTeRI?si=pQ_fMmJnLwOd2Ayd', source: 'YouTube' },
+    { title: 'Windows Server 16 Course Part 5', url: 'https://youtu.be/GQQRMY2nMIc?si=Z4Ths8_2M5z3AdoU', source: 'YouTube' },
+    { title: 'Windows Server 16 Course Part 6', url: 'https://youtu.be/AsiXQiXtQJY?si=yAW56dB7h3FrONJd', source: 'YouTube' },
+    { title: 'Windows Server 16 Course Part 7', url: 'https://youtu.be/KEhvmWcBdPM?si=KybJ8oK5ZIlnZ0Uq', source: 'YouTube' },
+    { title: 'Windows Server 16 Course Part 8', url: 'https://youtu.be/IDpnpjrc3lw?si=e6fUalvrg8J3u6QQ', source: 'YouTube' },
+    { title: 'Windows Server 16 Course Part 9', url: 'https://youtu.be/YgRoO1Lu4co?si=aCHkLjf7jfnPZwpx', source: 'YouTube' },
+    { title: 'Windows Server 16 Course Part 10', url: 'https://youtu.be/YtxAnh65laA?si=BPud_B9Zn9uzptcg', source: 'YouTube' },
+    { title: 'Windows Server 16 Course Part 11', url: 'https://youtu.be/dsjoQuMfTno?si=AQ2nfooC3abP1wmb', source: 'YouTube' },
+    { title: 'Windows Server 16 Course Part 12', url: 'https://youtu.be/3yMUBz_0xUU?si=D63UYP8cPYgsK8jS', source: 'YouTube' },
+    { title: 'Windows Server 16 Course Part 13', url: 'https://youtu.be/9b7F0haHKX4?si=TLUTB7FHGi4U_IWr', source: 'YouTube' },
+    { title: 'Windows Server 16 Course Part 14', url: 'https://youtu.be/d5zKkyTchdA?si=x48TKZrO-8UjGDsv', source: 'YouTube' },
+    { title: 'Windows Server 16 Course Part 15', url: 'https://youtu.be/gEn8j9vkaMU?si=BZrlbUOx6u3_Icou', source: 'YouTube' },
+    { title: 'Windows Server 16 Course Part 16', url: 'https://youtu.be/eZAQqUmVK9w?si=p2sWlkZZEoBP1ZIZ', source: 'YouTube' },
+    { title: 'Windows Server 16 Course Part 17', url: 'https://youtu.be/qbk2_LfcID4?si=8mHC1azCdRjJy_I-', source: 'YouTube' },
+    { title: 'Windows Server 16 Course Part 18', url: 'https://youtu.be/a1SmLYKiDcE?si=jfHcQ9Xgkcm8ra5l', source: 'YouTube' },
+    { title: 'Networking Protocols Intro', url: 'https://youtu.be/1zVZ9cWFnCc?si=5s72pvfZdF_KN7l2', source: 'YouTube' },
+    { title: 'Networking Protocols Deep Dive', url: 'https://youtu.be/z_CU-IeOEzU?si=ufc9HaSaCxpK_4BJ', source: 'YouTube' },
+    { title: 'DNS Fundamentals', url: 'https://youtu.be/nyH0nYhMW9M?si=gLYHgsDqlJ1t0ECc', source: 'YouTube' },
+    { title: 'SMTP POP3 IMAP Explained', url: 'https://youtu.be/aria5gmElSc?si=E1MmTcIaHtRrGyVm', source: 'YouTube' },
+    { title: 'Web Server Basics', url: 'https://youtu.be/AB0VMbvEz7g?si=OpACZZOgaQGJmIBT', source: 'YouTube' },
+    { title: 'FTP Basics', url: 'https://youtu.be/hhGgYI580WE?si=lMWGNi5YKKNbplG2', source: 'YouTube' },
+    { title: 'Hardware Troubleshooting', url: 'https://youtu.be/L2E7vpj3Iq8?si=OP0DD-r0s0Um9ZXe', source: 'YouTube' },
+    { title: 'OS Troubleshooting', url: 'https://youtu.be/0Pk08wucjU8?si=dgiNVO07EeKovX7F', source: 'YouTube' },
+    { title: 'IIS Server Playlist', url: 'https://youtube.com/playlist?list=PLS0spxc8nUsBZXueaeu22gtcbzXoGsK8F&si=4JxSVIfWcZlnAxp_', source: 'YouTube Playlist' },
+    { title: 'MySQL Basics', url: 'https://youtu.be/Cz3WcZLRaWc?si=jrS7cNpTNARxCI64', source: 'YouTube' },
+    { title: 'Virtualization Fundamentals', url: 'https://youtu.be/7m3f-P-WWbg?si=PXWkyZVfBSuGtAJ2', source: 'YouTube' },
+    { title: 'Hyper-V Basics', url: 'https://youtu.be/LMAEbB2a50M?si=Kx1S6EEz6-BLF4ko', source: 'YouTube' },
+    { title: 'WSUS Tutorial', url: 'https://youtu.be/DGIS83oA2Tg?si=n4Q1xEpbCdjd2YaZ', source: 'YouTube' },
+    { title: 'Antivirus Essentials', url: 'https://youtu.be/SfdzO0o9604?si=trd0klRLnmIYOwyL', source: 'YouTube' },
+    { title: 'Active Directory Basics', url: 'https://youtu.be/85-bp7XxWDQ?si=DINC5v15hQIjrPVE', source: 'YouTube' },
+    { title: 'HTML Basics', url: 'https://youtu.be/salY_Sm6mv4?si=esD9dAY4Ym_ea9FC', source: 'YouTube' },
+    { title: 'Monitoring and Maintenance Playlist', url: 'https://youtube.com/playlist?list=PLcDrg04OfcPN2nJziqWPGsKUA2sSpC8uh&si=SzPDmbXKIXz67l96', source: 'YouTube Playlist' },
+    { title: 'Master Writing SOPs', url: 'https://youtu.be/qhBgvVMvPH8?si=Syp-KunH75pochcR', source: 'YouTube' },
+    { title: 'Problem Solving Skills', url: 'https://youtu.be/ehRNriENFic?si=M0G8TyCXyuQVkP9G', source: 'YouTube' },
+    { title: 'Workplace Communication', url: 'https://youtu.be/fm6PtyM4qMw?si=PfBaTnYjYoqd2JtJ', source: 'YouTube' }
+  ]
+};
+
+ESDS_RESOURCE_LIBRARY.notes = ESDS_RESOURCE_LIBRARY.video;
+ESDS_RESOURCE_LIBRARY.practice = ESDS_RESOURCE_LIBRARY.video;
+
+const AARTI_RESOURCE_LIBRARY = {
+  video: [
+    { title: 'Unit Operations - Session 1', url: 'https://youtu.be/CDiBS0w1Z5M?si=GZ4MKACbFjQO5O3-', source: 'YouTube' },
+    { title: 'Unit Operations - Session 2', url: 'https://youtu.be/Vz2la3947I0?si=L5wdLzq2MouUxz7J', source: 'YouTube' },
+    { title: 'Heat and Mass Transfer - Intro', url: 'https://youtu.be/6jQsLAqrZGQ?si=X54VmsSnYLuvhW50', source: 'YouTube' },
+    { title: 'Heat and Mass Transfer - Concepts', url: 'https://youtu.be/7Bj3N1E7vZk?si=nlwGs7TEovDAthXQ', source: 'YouTube' },
+    { title: 'Heat and Mass Transfer - Applications', url: 'https://youtu.be/gcgFTGEE2mk?si=gw1VVtbuvm8-cMef', source: 'YouTube' },
+    { title: 'Mass and Energy Balance Playlist', url: 'https://youtube.com/playlist?list=PL7GITJ_xbUTUoUEbZW7YUibr6C4oZd7hZ&si=8Vi26SUyXxxRwnhy', source: 'YouTube Playlist' },
+    { title: 'Reaction Engineering Playlist', url: 'https://youtube.com/playlist?list=PL_UhBh-E8IOL69InxwFwYwSiF5yoYkm4L&si=UCQW3uvbD3b0m8A6', source: 'YouTube Playlist' },
+    { title: 'PFD and P&ID Basics', url: 'https://youtu.be/Pov2sMx2E_s?si=-YfLqDGvP1eJquQS', source: 'YouTube' },
+    { title: 'Process Optimization Basics', url: 'https://youtu.be/bTtzePtRCv0?si=mb1bAF6wd-skejcR', source: 'YouTube' },
+    { title: 'Pipe Sizing Fundamentals', url: 'https://youtu.be/bhCf0HR61iY?si=Y1qXlOGDdjFD18JP', source: 'YouTube' },
+    { title: 'Chemical Manufacturing Safety', url: 'https://youtu.be/sdsiQ0b0GEI?si=gsGWyL6YjWrCX628', source: 'YouTube' },
+    { title: 'Electrical Fundamentals for Plant Role - Part 1', url: 'https://youtu.be/X1r9NbgPYYE?si=TdQYPm1e-g6uYexY', source: 'YouTube' },
+    { title: 'Electrical Fundamentals for Plant Role - Part 2', url: 'https://youtu.be/1h3OYZJ5Ssc?si=WdCrVHO5o_Ed06fr', source: 'YouTube' },
+    { title: 'Electrical Fundamentals for Plant Role - Part 3', url: 'https://youtu.be/60eGatXK9lU?si=D0eoIq6Qr66ehdTt', source: 'YouTube' },
+    { title: 'Instrumentation Basics - Part 1', url: 'https://youtu.be/tY50mpZtdM8?si=VvgUWOUFprrEhmxi', source: 'YouTube' },
+    { title: 'Instrumentation Basics - Part 2', url: 'https://youtu.be/KtsiM1st0KA?si=hSByVW9OvvEibuws', source: 'YouTube' },
+    { title: 'Instrumentation Playlist', url: 'https://youtube.com/playlist?list=PL7GITJ_xbUTUoUEbZW7YUibr6C4oZd7hZ&si=8Vi26SUyXxxRwnhy', source: 'YouTube Playlist' },
+    { title: 'Instrumentation Basics - Part 3', url: 'https://youtu.be/uOtdWHMKhnw?si=QPn6fju72XNWOZA9', source: 'YouTube' },
+    { title: 'Reading Industrial Diagrams', url: 'https://youtu.be/j4EOTerfyTY?si=LHZuI1XY8ULr9RRk', source: 'YouTube' }
+  ]
+};
+
+AARTI_RESOURCE_LIBRARY.notes = AARTI_RESOURCE_LIBRARY.video;
+AARTI_RESOURCE_LIBRARY.practice = AARTI_RESOURCE_LIBRARY.video;
+
+const NEILSOFT_RESOURCE_LIBRARY = {
+  video: [
+    { title: 'Precast', url: 'https://youtu.be/Rz057MfqH0c?si=wLLjfY7oa_B-O0dd', source: 'YouTube' },
+    { title: 'Rebar', url: 'https://youtu.be/AI_kmzZZUZ4?si=02d51yoNRwlxrYbT', source: 'YouTube' },
+    { title: 'Engineering Drawing', url: 'https://youtu.be/B1TtyMXqqCo?si=O5f-1KpnQDuEvkdj', source: 'YouTube' },
+    { title: 'AutoCAD for Civil Engineering', url: 'https://youtu.be/ySQLJ41L_t4?si=ckJddUmaq-tUBkP2', source: 'YouTube' },
+    { title: 'Tekla Modelling Basics', url: 'https://www.youtube.com/results?search_query=tekla+modelling+for+civil+engineering', source: 'YouTube Search' },
+    { title: 'Fundamentals of Excel', url: 'https://youtu.be/Jl0Qk63z2ZY?si=qK9r0MhVUCIGJZzd', source: 'YouTube' }
+  ]
+};
+
+NEILSOFT_RESOURCE_LIBRARY.notes = NEILSOFT_RESOURCE_LIBRARY.video;
+NEILSOFT_RESOURCE_LIBRARY.practice = NEILSOFT_RESOURCE_LIBRARY.video;
+
 const TECH_RATE_MAP = { Beginner: 1, Intermediate: 2, Advanced: 3 };
 
 const normalize = (v) => String(v || '').toLowerCase().trim();
 
-function getInitialRoadmaps() {
-  try {
-    const raw = localStorage.getItem('placementhub.roadmaps');
-    return raw ? JSON.parse(raw) : [];
-  } catch (_err) {
-    return [];
-  }
+function getRoadmapStorageKey(user) {
+  if (!user) return 'placementhub.roadmaps.guest';
+  return `placementhub.roadmaps.${user.id || user.email || 'guest'}`;
 }
 
 function getInitialCompanies() {
-  return COMPANY_INTELLIGENCE;
+  return [...COMPANY_INTELLIGENCE].sort((a, b) => {
+    if (a?.id === 'neilsoft-get-civil') return -1;
+    if (b?.id === 'neilsoft-get-civil') return 1;
+    return new Date(b?.date || 0).getTime() - new Date(a?.date || 0).getTime();
+  });
 }
 
 function computeMode(totalDays) {
@@ -618,7 +930,22 @@ function translateIfNeeded(text, englishConfidence) {
   return key ? text.replace(key, dictionary[key]) : text;
 }
 
-function pickResource(learningStyle, day, taskIndex) {
+function pickResource(learningStyle, day, taskIndex, company) {
+  if (company?.id === 'neilsoft-get-civil') {
+    const neilsoftStyleKey = learningStyle === 'Watch videos' ? 'video' : learningStyle === 'Read notes' ? 'notes' : 'practice';
+    const neilsoftPool = NEILSOFT_RESOURCE_LIBRARY[neilsoftStyleKey] || NEILSOFT_RESOURCE_LIBRARY.video;
+    return neilsoftPool[(day + taskIndex) % neilsoftPool.length];
+  }
+  if (company?.id === 'aarti-pharmalabs-get') {
+    const aartiStyleKey = learningStyle === 'Watch videos' ? 'video' : learningStyle === 'Read notes' ? 'notes' : 'practice';
+    const aartiPool = AARTI_RESOURCE_LIBRARY[aartiStyleKey] || AARTI_RESOURCE_LIBRARY.video;
+    return aartiPool[(day + taskIndex) % aartiPool.length];
+  }
+  if (company?.id === 'esds-windows-admin') {
+    const esdsStyleKey = learningStyle === 'Watch videos' ? 'video' : learningStyle === 'Read notes' ? 'notes' : 'practice';
+    const esdsPool = ESDS_RESOURCE_LIBRARY[esdsStyleKey] || ESDS_RESOURCE_LIBRARY.video;
+    return esdsPool[(day + taskIndex) % esdsPool.length];
+  }
   const styleKey = learningStyle === 'Watch videos' ? 'video' : learningStyle === 'Read notes' ? 'notes' : 'practice';
   const pool = RESOURCE_LIBRARY[styleKey];
   return pool[(day + taskIndex) % pool.length];
@@ -707,7 +1034,7 @@ function buildDynamicDayPlans(company, assessment, skillGaps) {
         title,
         type,
         estimatedTime: hoursPerDay <= 0.5 ? '20-25 min' : hoursPerDay <= 1 ? '25-35 min' : '35-50 min',
-        resource: pickResource(assessment.learningStyle, day, t),
+        resource: pickResource(assessment.learningStyle, day, t, company),
         completed: false
       });
     }
@@ -733,8 +1060,10 @@ function flattenTasks(dayPlans) {
 }
 
 export function RoadmapProvider({ children }) {
+  const { user, apiBaseUrl, getAuthToken } = useAuth();
   const [companies, setCompanies] = useState(getInitialCompanies);
-  const [roadmaps, setRoadmaps] = useState(getInitialRoadmaps);
+  const [roadmaps, setRoadmaps] = useState([]);
+  const roadmapStorageKey = useMemo(() => getRoadmapStorageKey(user), [user]);
 
   useEffect(() => {
     // Cleanup legacy cache so old stale company lists don't override current defaults.
@@ -742,8 +1071,17 @@ export function RoadmapProvider({ children }) {
   }, []);
 
   useEffect(() => {
-    localStorage.setItem('placementhub.roadmaps', JSON.stringify(roadmaps));
-  }, [roadmaps]);
+    try {
+      const raw = localStorage.getItem(roadmapStorageKey);
+      setRoadmaps(raw ? JSON.parse(raw) : []);
+    } catch (_err) {
+      setRoadmaps([]);
+    }
+  }, [roadmapStorageKey]);
+
+  useEffect(() => {
+    localStorage.setItem(roadmapStorageKey, JSON.stringify(roadmaps));
+  }, [roadmaps, roadmapStorageKey]);
 
   const getCompanyQuiz = (companyId) => {
     if (COMPANY_QUIZ_OVERRIDES[companyId]) {
@@ -829,6 +1167,51 @@ export function RoadmapProvider({ children }) {
     );
   };
 
+  const toggleRoadmapTaskCompletion = (roadmapId, day, taskId) => {
+    setRoadmaps((prev) =>
+      prev.map((roadmap) => {
+        if (roadmap.id !== roadmapId) return roadmap;
+
+        const dayPlans = roadmap.dayPlans.map((d) => {
+          if (d.day !== day) return d;
+
+          const tasks = d.tasks.map((task) => {
+            if (task.id !== taskId) return task;
+            return { ...task, completed: !task.completed };
+          });
+
+          return {
+            ...d,
+            tasks,
+            completed: tasks.every((task) => task.completed)
+          };
+        });
+
+        return {
+          ...roadmap,
+          dayPlans,
+          plan: flattenTasks(dayPlans)
+        };
+      })
+    );
+  };
+
+  const completeRoadmapPostAssessment = (roadmapId, result) => {
+    setRoadmaps((prev) =>
+      prev.map((roadmap) => {
+        if (roadmap.id !== roadmapId) return roadmap;
+        return {
+          ...roadmap,
+          postAssessment: {
+            ...(roadmap.postAssessment || {}),
+            ...result,
+            completedAt: new Date().toISOString()
+          }
+        };
+      })
+    );
+  };
+
   const addCompanyAnnouncement = (companyInput) => {
     const idBase = normalize(companyInput.company_name).replace(/[^a-z0-9]+/g, '-');
     const roleText = normalize(companyInput.role);
@@ -900,6 +1283,29 @@ export function RoadmapProvider({ children }) {
     };
   }, [roadmaps]);
 
+  useEffect(() => {
+    if (!user || user.role !== 'student' || !apiBaseUrl) return;
+
+    const payload = {
+      readiness_score: dashboardStats.readiness_score || 0,
+      active_roadmap: dashboardStats.active_roadmap || 0,
+      progress_percentage: dashboardStats.progress_percentage || 0
+    };
+
+    const authToken = getAuthToken?.();
+    fetch(`${apiBaseUrl}/api/student/progress-summary`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(payload)
+    }).catch(() => {
+      // Keep local UX responsive even if summary sync fails.
+    });
+  }, [user, apiBaseUrl, getAuthToken, dashboardStats]);
+
   return (
     <RoadmapContext.Provider
       value={{
@@ -909,6 +1315,8 @@ export function RoadmapProvider({ children }) {
         getCompanyQuiz,
         generateRoadmapFromAssessment,
         toggleRoadmapDayCompletion,
+        toggleRoadmapTaskCompletion,
+        completeRoadmapPostAssessment,
         addCompanyAnnouncement,
         removeCompanyAnnouncement
       }}

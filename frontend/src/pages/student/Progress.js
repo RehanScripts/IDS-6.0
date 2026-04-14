@@ -24,24 +24,24 @@ export default function Progress() {
   const progressPercentage = totalDays ? Math.round((completedDays / totalDays) * 100) : 0;
 
   return (
-    <div className="p-6 md:p-8" data-testid="progress-page">
+    <div className="p-6 md:p-8 bg-emerald-50/40 min-h-screen" data-testid="progress-page">
       <div className="mb-8">
         <h1 className="text-4xl font-semibold text-slate-900 tracking-tight" style={{fontFamily: 'Outfit'}}>Progress</h1>
         <p className="text-slate-500 mt-2">Track roadmap completion and days left</p>
       </div>
 
-      <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm mb-6">
+      <div className="bg-white border border-emerald-200 rounded-xl p-6 shadow-sm mb-6">
         <div className="flex items-center justify-between mb-3">
           <p className="text-sm font-medium text-slate-700">Overall Progress</p>
-          <p className="text-2xl font-semibold text-indigo-600">{progressPercentage}%</p>
+          <p className="text-2xl font-semibold text-emerald-600">{progressPercentage}%</p>
         </div>
         <div className="w-full bg-slate-100 rounded-full h-3">
-          <div className="bg-indigo-600 h-3 rounded-full transition-all" style={{ width: `${progressPercentage}%` }} data-testid="progress-bar"></div>
+          <div className="bg-emerald-600 h-3 rounded-full transition-all" style={{ width: `${progressPercentage}%` }} data-testid="progress-bar"></div>
         </div>
         <p className="text-xs text-slate-500 mt-2">{completedDays} of {totalDays} days completed</p>
       </div>
 
-      <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm">
+      <div className="bg-white border border-emerald-200 rounded-xl p-6 shadow-sm">
         <h2 className="text-xl font-medium text-slate-900 mb-4" style={{fontFamily: 'Outfit'}}>Roadmap-wise Progress</h2>
         <div className="space-y-3">
           {roadmaps.map((roadmap, idx) => {
@@ -50,16 +50,16 @@ export default function Progress() {
             const roadmapTotal = Number.isFinite(roadmap?.totalDays) ? roadmap.totalDays : days.length;
             const pct = roadmapTotal ? Math.round((done / roadmapTotal) * 100) : 0;
             return (
-              <div key={roadmap.id || `${roadmap.company_name || 'roadmap'}-${idx}`} data-testid={`roadmap-progress-${idx}`} className="p-4 bg-slate-50 rounded-lg border border-slate-200">
+              <div key={roadmap.id || `${roadmap.company_name || 'roadmap'}-${idx}`} data-testid={`roadmap-progress-${idx}`} className="p-4 bg-emerald-50 rounded-lg border border-emerald-200">
                 <div className="flex items-center justify-between mb-2">
                   <div>
                     <p className="text-sm font-medium text-slate-900">{roadmap.company_name}</p>
                     <p className="text-xs text-slate-500">{Number.isFinite(roadmap?.daysRemaining) ? roadmap.daysRemaining : roadmapTotal - done} days left</p>
                   </div>
-                  <p className="text-sm font-semibold text-indigo-600">{pct}%</p>
+                  <p className="text-sm font-semibold text-emerald-600">{pct}%</p>
                 </div>
                 <div className="w-full bg-slate-100 rounded-full h-2">
-                  <div className="bg-indigo-600 h-2 rounded-full" style={{ width: `${pct}%` }}></div>
+                  <div className="bg-emerald-600 h-2 rounded-full" style={{ width: `${pct}%` }}></div>
                 </div>
               </div>
             );

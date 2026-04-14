@@ -513,6 +513,7 @@ export default function MockInterviewMascot() {
   const [pulseActive, setPulseActive] = useState(true);
   const [interviewType, setInterviewType] = useState('text');
   const [isExpanded, setIsExpanded] = useState(false);
+  const [isFullScreen, setIsFullScreen] = useState(false);
 
   // Voice / Video State
   const [isRecording, setIsRecording] = useState(false);
@@ -543,6 +544,30 @@ export default function MockInterviewMascot() {
       setPulseActive((prev) => !prev);
     }, 4000);
     return () => clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
+    const openHandler = () => setIsOpen(true);
+    const minimizeHandler = () => {
+      setIsOpen(false);
+      setIsExpanded(false);
+      setIsFullScreen(false);
+    };
+    const fullScreenHandler = (event) => {
+      const enabled = event?.detail?.enabled;
+      setIsOpen(true);
+      setIsFullScreen((prev) => (typeof enabled === 'boolean' ? enabled : !prev));
+    };
+
+    window.addEventListener('mock-interview:open', openHandler);
+    window.addEventListener('mock-interview:minimize', minimizeHandler);
+    window.addEventListener('mock-interview:fullscreen', fullScreenHandler);
+
+    return () => {
+      window.removeEventListener('mock-interview:open', openHandler);
+      window.removeEventListener('mock-interview:minimize', minimizeHandler);
+      window.removeEventListener('mock-interview:fullscreen', fullScreenHandler);
+    };
   }, []);
 
 // Cleanup on unmount
@@ -898,6 +923,7 @@ useEffect(() => {
     setInputText('');
     setVoiceTranscript('');
     setIsExpanded(false);
+    setIsFullScreen(false);
     setInterviewType('text');
   };
 
@@ -918,7 +944,7 @@ useEffect(() => {
   if (!user || user.role !== 'student') return null;
 
   const isVoiceOrVideo = interviewType === 'voice' || interviewType === 'video';
-  const panelClass = `mi-panel ${isOpen ? 'mi-panel-open' : ''} ${isExpanded ? 'mi-panel-expanded' : ''}`;
+  const panelClass = `mi-panel ${isOpen ? 'mi-panel-open' : ''} ${isExpanded ? 'mi-panel-expanded' : ''} ${isFullScreen ? 'mi-panel-force-fullscreen' : ''}`;
 
   return (
     <>
@@ -965,6 +991,13 @@ useEffect(() => {
                 {ttsEnabled ? <Volume2 size={16} /> : <VolumeX size={16} />}
               </button>
             )}
+            <button
+              className="mi-header-btn"
+              onClick={() => setIsFullScreen((prev) => !prev)}
+              title={isFullScreen ? 'Exit Full Screen' : 'Full Screen'}
+            >
+              {isFullScreen ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
+            </button>
             {view === 'interview' && interviewType === 'video' && (
               <button
                 className="mi-header-btn"
@@ -979,10 +1012,18 @@ useEffect(() => {
                 <PhoneOff size={16} />
               </button>
             )}
-            <button className="mi-header-btn" onClick={() => setIsOpen(false)} title="Minimize">
+            <button
+              className="mi-header-btn"
+              onClick={() => {
+                setIsOpen(false);
+                setIsExpanded(false);
+                setIsFullScreen(false);
+              }}
+              title="Minimize"
+            >
               <ChevronDown size={18} />
             </button>
-            <button className="mi-header-btn mi-header-close" onClick={() => { setIsOpen(false); }} title="Close">
+            <button className="mi-header-btn mi-header-close" onClick={() => { setIsOpen(false); setIsExpanded(false); setIsFullScreen(false); }} title="Close">
               <X size={18} />
             </button>
           </div>

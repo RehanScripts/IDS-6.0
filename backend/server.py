@@ -2,6 +2,7 @@ from dotenv import load_dotenv
 from pathlib import Path
 import asyncio
 import io
+import json
 import re
 from collections import Counter
 
@@ -42,6 +43,9 @@ except Exception:
 SUPABASE_URL = os.environ.get("SUPABASE_URL")
 SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY")
 SUPABASE_SERVICE_ROLE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
+SUPABASE_STORAGE_BUCKET = (os.environ.get("SUPABASE_STORAGE_BUCKET") or "ids-assets").strip()
+SUPABASE_RESUMES_FOLDER = (os.environ.get("SUPABASE_RESUMES_FOLDER") or "resumes").strip()
+SUPABASE_COMPANIES_FOLDER = (os.environ.get("SUPABASE_COMPANIES_FOLDER") or "companies").strip()
 OCR_SPACE_API_KEY = os.environ.get("OCR_SPACE_API_KEY", "").strip()
 OCR_SPACE_API_URL = os.environ.get("OCR_SPACE_API_URL", "https://api.ocr.space/parse/image")
 
@@ -179,6 +183,59 @@ class _SupabaseDatabase:
         self.companies = _SupabaseCollection(client, "companies")
         self.roadmaps = _SupabaseCollection(client, "roadmaps")
         self.student_progress = _SupabaseCollection(client, "student_progress")
+
+PROFILE_META_PREFIX = "__profile_meta__:"
+
+def _extract_profile_meta(weak_skills: Any) -> dict:
+    if not isinstance(weak_skills, list):
+        return {}
+    for item in weak_skills:
+        if isinstance(item, str) and item.startswith(PROFILE_META_PREFIX):
+            raw = item[len(PROFILE_META_PREFIX):]
+            try:
+                parsed = json.loads(raw)
+                return parsed if isinstance(parsed, dict) else {}
+            except Exception:
+                return {}
+    return {}
+
+def _compose_weak_skills_with_meta(existing_weak_skills: Any, meta_updates: dict) -> list:
+    base_skills = []
+    existing_meta = {}
+    if isinstance(existing_weak_skills, list):
+        for item in existing_weak_skills:
+            if isinstance(item, str) and item.startswith(PROFILE_META_PREFIX):
+                existing_meta = _extract_profile_meta([item])
+            elif isinstance(item, str):
+                base_skills.append(item)
+
+    merged_meta = {**existing_meta, **{k: v for k, v in (meta_updates or {}).items() if v is not None}}
+    if merged_meta:
+        return [f"{PROFILE_META_PREFIX}{json.dumps(merged_meta, separators=(',', ':'))}", *base_skills]
+    return base_skills
+
+def _inject_profile_meta_fields(user: Optional[dict]) -> Optional[dict]:
+    if not user:
+        return user
+    out = dict(user)
+    meta = _extract_profile_meta(out.get("weak_skills"))
+    for field in [
+        "college_name",
+        "year",
+        "about",
+        "resume_file_name",
+        "resume_storage_name",
+        "resume_bucket_path",
+        "resume_public_url",
+        "resume_content_type",
+        "resume_insights",
+        "last_login_at",
+        "progress_percentage",
+        "active_roadmap",
+    ]:
+        if out.get(field) is None and meta.get(field) is not None:
+            out[field] = meta.get(field)
+    return out
 
 db = _SupabaseDatabase(supabase_service) if supabase_service else None
 
@@ -392,6 +449,7 @@ async def get_current_user(request: Request) -> dict:
         user = await db.users.find_one({"id": payload["sub"]}, {"_id": 0})
         if not user:
             raise HTTPException(status_code=401, detail="User not found")
+        user = _inject_profile_meta_fields(user)
         user["id"] = str(payload["sub"])
         user.pop("password_hash", None)
         return user
@@ -412,7 +470,16 @@ class LoginRequest(BaseModel):
     password: str
 
 class StudentProfileUpdateRequest(BaseModel):
-    about: str = Field(min_length=1, max_length=2000)
+    name: Optional[str] = Field(default=None, min_length=1, max_length=120)
+    branch: Optional[str] = Field(default=None, min_length=1, max_length=120)
+    college_name: Optional[str] = Field(default=None, min_length=1, max_length=200)
+    year: Optional[str] = Field(default=None, min_length=1, max_length=60)
+    about: Optional[str] = Field(default=None, max_length=2000)
+
+class StudentProgressSummaryRequest(BaseModel):
+    readiness_score: int = Field(ge=0, le=100)
+    active_roadmap: int = Field(ge=0)
+    progress_percentage: int = Field(ge=0, le=100)
 
 class QueryForwardRequest(BaseModel):
     name: str = Field(min_length=1, max_length=120)
@@ -492,6 +559,59 @@ def _extract_text_from_resume(file_name: str, file_bytes: bytes, content_type: s
             pass
 
     return ""
+
+def _upload_bytes_to_supabase_storage(folder: str, owner_id: str, file_name: str, content_type: str, file_bytes: bytes) -> dict:
+    if not supabase_service or not SUPABASE_STORAGE_BUCKET:
+        return {"path": None, "public_url": None}
+
+    suffix = Path(file_name or "file").suffix
+    safe_owner = re.sub(r"[^a-zA-Z0-9_-]", "_", owner_id or "anonymous")
+    object_path = f"{folder}/{safe_owner}/{secrets.token_urlsafe(18)}{suffix}"
+    normalized_content_type = (content_type or "").lower()
+    if suffix.lower() == ".pdf":
+        normalized_content_type = "file/pdf"
+    elif suffix.lower() in {".txt"}:
+        normalized_content_type = "file/txt"
+    elif suffix.lower() in {".jpg", ".jpeg"}:
+        normalized_content_type = "image/jpeg"
+    try:
+        supabase_service.storage.from_(SUPABASE_STORAGE_BUCKET).upload(
+            object_path,
+            file_bytes,
+            {"content-type": normalized_content_type or "application/octet-stream", "upsert": "true"},
+        )
+        public_url = supabase_service.storage.from_(SUPABASE_STORAGE_BUCKET).get_public_url(object_path)
+        return {"path": object_path, "public_url": public_url}
+    except Exception:
+        return {"path": None, "public_url": None}
+
+def _download_bytes_from_supabase_storage(object_path: str) -> Optional[bytes]:
+    if not object_path or not supabase_service or not SUPABASE_STORAGE_BUCKET:
+        return None
+    try:
+        data = supabase_service.storage.from_(SUPABASE_STORAGE_BUCKET).download(object_path)
+        return data if isinstance(data, (bytes, bytearray)) else None
+    except Exception:
+        return None
+
+def _remove_from_supabase_storage(object_path: str) -> None:
+    if not object_path or not supabase_service or not SUPABASE_STORAGE_BUCKET:
+        return
+    try:
+        supabase_service.storage.from_(SUPABASE_STORAGE_BUCKET).remove([object_path])
+    except Exception:
+        pass
+
+def _parse_iso_datetime(value: Optional[str]) -> Optional[datetime]:
+    if not value:
+        return None
+    try:
+        parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+        if parsed.tzinfo is None:
+            return parsed.replace(tzinfo=timezone.utc)
+        return parsed.astimezone(timezone.utc)
+    except Exception:
+        return None
 
 def _nlp_resume_insights(text: str) -> dict:
     normalized = (text or "").lower()
@@ -588,7 +708,28 @@ async def register(input: RegisterRequest, response: Response):
         "branch": input.branch,
         "readiness_score": 0,
         "placement_status": "not_placed",
-        "weak_skills": [],
+        "weak_skills": _compose_weak_skills_with_meta([], {
+            "college_name": None,
+            "year": None,
+            "about": None,
+            "resume_file_name": None,
+            "resume_storage_name": None,
+            "resume_bucket_path": None,
+            "resume_public_url": None,
+            "resume_content_type": None,
+            "resume_insights": {
+                "skills": [],
+                "emails": [],
+                "phones": [],
+                "links": [],
+                "top_terms": [],
+                "summary": "",
+                "text_preview": "",
+            },
+            "last_login_at": datetime.now(timezone.utc).isoformat(),
+            "progress_percentage": 0,
+            "active_roadmap": 0,
+        }),
         "created_at": datetime.now(timezone.utc)
     }
     await db.users.insert_one(user_doc)
@@ -641,6 +782,8 @@ async def register_profile(
     resume_file_name = None
     resume_storage_name = None
     resume_content_type = None
+    resume_bucket_path = None
+    resume_public_url = None
     resume_insights = {
         "skills": [],
         "emails": [],
@@ -658,6 +801,15 @@ async def register_profile(
         suffix = Path(resume.filename or "resume").suffix
         resume_storage_name = f"{secrets.token_urlsafe(18)}{suffix}"
         (UPLOADS_DIR / resume_storage_name).write_bytes(file_bytes)
+        uploaded = _upload_bytes_to_supabase_storage(
+            SUPABASE_RESUMES_FOLDER,
+            auth_user_id,
+            resume_file_name,
+            resume_content_type,
+            file_bytes,
+        )
+        resume_bucket_path = uploaded.get("path")
+        resume_public_url = uploaded.get("public_url")
         extracted_text = _extract_text_from_resume(resume.filename or "", file_bytes, resume.content_type or "")
         resume_insights = _nlp_resume_insights(extracted_text)
 
@@ -669,7 +821,20 @@ async def register_profile(
         "branch": branch,
         "readiness_score": 0,
         "placement_status": "not_placed",
-        "weak_skills": [],
+        "weak_skills": _compose_weak_skills_with_meta([], {
+            "college_name": college_name,
+            "year": year,
+            "about": about,
+            "resume_file_name": resume_file_name,
+            "resume_storage_name": resume_storage_name,
+            "resume_bucket_path": resume_bucket_path,
+            "resume_public_url": resume_public_url,
+            "resume_content_type": resume_content_type,
+            "resume_insights": resume_insights,
+            "last_login_at": datetime.now(timezone.utc).isoformat(),
+            "progress_percentage": 0,
+            "active_roadmap": 0,
+        }),
         "created_at": datetime.now(timezone.utc),
     }
 
@@ -691,6 +856,8 @@ async def register_profile(
         "about": about,
         "resume_file_name": resume_file_name,
         "resume_storage_name": resume_storage_name,
+        "resume_bucket_path": resume_bucket_path,
+        "resume_public_url": resume_public_url,
         "resume_content_type": resume_content_type,
         "resume_insights": resume_insights,
         "access_token": access_token,
@@ -701,14 +868,15 @@ async def register_profile(
 @api_router.post("/auth/login")
 async def login(input: LoginRequest, response: Response):
     email = input.email.lower()
+    now_iso = datetime.now(timezone.utc).isoformat()
     
     # Mock login for demo users
     if email == "tpo@college.edu":
         user_id = "mock_tpo_id"
-        user = {"email": email, "name": "TPO Admin", "role": "tpo", "branch": None}
+        user = {"email": email, "name": "TPO Admin", "role": "tpo", "branch": None, "last_login_at": now_iso}
     elif email == "student@college.edu":
         user_id = "mock_student_id"
-        user = {"email": email, "name": "Abhay Patil", "role": "student", "branch": "Mechanical Engineering"}
+        user = {"email": email, "name": "Abhay Patil", "role": "student", "branch": "Mechanical Engineering", "last_login_at": now_iso}
     else:
         if db is None:
             raise HTTPException(status_code=401, detail="Database not connected and user not in mock list")
@@ -731,6 +899,11 @@ async def login(input: LoginRequest, response: Response):
             raise HTTPException(status_code=401, detail="Invalid email or password")
 
         user_id = str(user.get("id"))
+        merged_weak_skills = _compose_weak_skills_with_meta(user.get("weak_skills"), {"last_login_at": now_iso})
+        await db.users.update_one({"id": user_id}, {"$set": {"last_login_at": now_iso, "weak_skills": merged_weak_skills}})
+        user["weak_skills"] = merged_weak_skills
+        user["last_login_at"] = now_iso
+        user = _inject_profile_meta_fields(user)
         user.pop("password_hash", None)
 
     access_token = create_access_token(user_id, email)
@@ -748,8 +921,11 @@ async def login(input: LoginRequest, response: Response):
         "about": user.get("about"),
         "resume_file_name": user.get("resume_file_name"),
         "resume_storage_name": user.get("resume_storage_name"),
+        "resume_bucket_path": user.get("resume_bucket_path"),
+        "resume_public_url": user.get("resume_public_url"),
         "resume_content_type": user.get("resume_content_type"),
         "resume_insights": user.get("resume_insights"),
+        "last_login_at": user.get("last_login_at"),
         "access_token": access_token,
         "refresh_token": refresh_token,
         "token_type": "Bearer",
@@ -855,6 +1031,9 @@ MOCK_COMPANIES = [
     {"id": "comp24", "company_name": "Infosys", "role": "Systems Engineer", "date": "2026-04-22", "eligibility": "All branches, CGPA >= 6.0", "status": "active", "package": "6.5 LPA", "industry": "IT"},
     {"id": "comp25", "company_name": "DreamSoft IT Solutions Pvt. Ltd.", "role": "Junior Software Developer", "date": "2026-07-08", "eligibility": "CS / IT, CGPA >= 6.0", "status": "upcoming", "package": "4.0 LPA", "industry": "IT"},
     {"id": "comp26", "company_name": "Finiq Consulting India Pvt Ltd", "role": "Business Analyst", "date": "2026-07-10", "eligibility": "CS / IT / MBA, CGPA >= 6.5", "status": "upcoming", "package": "5.0 LPA", "industry": "IT"},
+    {"id": "comp27", "company_name": "ESDS", "role": "Windows Server Administrator", "date": "2026-07-20", "eligibility": "BCA / BSc IT / CS / E&TC, CGPA >= 6.0", "status": "upcoming", "package": "5.5 LPA", "industry": "IT"},
+    {"id": "comp28", "company_name": "Aarti Pharmalabs", "role": "Graduate Engineer Trainee (GET) - Projects", "date": "2026-07-25", "eligibility": "Chemical / Mechanical / Instrumentation, CGPA >= 6.5", "status": "upcoming", "package": "6.0 LPA", "industry": "Pharma"},
+    {"id": "neilsoft-get-civil", "company_name": "Neilsoft Ltd.", "role": "Graduate Engineer Trainee (GET)", "date": "2026-08-10", "eligibility": "Civil/Mechanical/Chemical (Pune/Mumbai), BE/ME", "status": "upcoming", "package": "5.0 LPA", "industry": "Engineering"},
 ]
 
 
@@ -892,7 +1071,14 @@ async def get_tpo_dashboard_stats(request: Request):
         active = len([c for c in MOCK_COMPANIES if c["status"] == "active"])
         avg = round(sum(s["readiness_score"] for s in MOCK_STUDENTS) / total, 1)
         placed = len([s for s in MOCK_STUDENTS if s["placement_status"] == "placed"])
-        return {"total_students": total, "upcoming_companies": active, "avg_readiness_score": avg, "placement_status": f"{placed}/{total}"}
+        return {
+            "total_students": total,
+            "upcoming_companies": active,
+            "avg_readiness_score": avg,
+            "placement_status": f"{placed}/{total}",
+            "total_users": total + 1,
+            "active_users": total,
+        }
     
     total_students = await db.users.count_documents({"role": "student"})
     upcoming_companies = await db.companies.count_documents({"status": "active"})
@@ -901,13 +1087,79 @@ async def get_tpo_dashboard_stats(request: Request):
     avg_readiness = sum([s.get("readiness_score", 0) for s in students]) / max(len(students), 1)
     
     placed_students = await db.users.count_documents({"role": "student", "placement_status": "placed"})
+    all_users = await db.users.find({}, {"_id": 0, "last_login_at": 1, "weak_skills": 1}).to_list(5000)
+    total_users = len(all_users)
+    active_users = 0
+    now = datetime.now(timezone.utc)
+    for item in all_users:
+        merged = _inject_profile_meta_fields(item)
+        last_login = _parse_iso_datetime(merged.get("last_login_at"))
+        if last_login and (now - last_login) <= timedelta(hours=24):
+            active_users += 1
     
     return {
         "total_students": total_students,
         "upcoming_companies": upcoming_companies,
         "avg_readiness_score": round(avg_readiness, 1),
-        "placement_status": f"{placed_students}/{total_students}"
+        "placement_status": f"{placed_students}/{total_students}",
+        "total_users": total_users,
+        "active_users": active_users,
     }
+
+@api_router.get("/tpo/dashboard/user-progress")
+async def get_tpo_user_progress(request: Request):
+    user = await get_current_user(request)
+    if user["role"] != "tpo":
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    if db is None:
+        return [
+            {
+                "name": s.get("name"),
+                "email": s.get("email"),
+                "branch": s.get("branch"),
+                "readiness_score": s.get("readiness_score", 0),
+                "progress_percentage": min(100, max(0, int(s.get("readiness_score", 0) * 0.8))),
+                "active_roadmap": 0,
+                "placement_status": s.get("placement_status", "not_placed"),
+                "is_active": True,
+            }
+            for s in MOCK_STUDENTS
+        ]
+
+    students = await db.users.find(
+        {"role": "student"},
+        {"_id": 0, "id": 1, "name": 1, "email": 1, "branch": 1, "readiness_score": 1, "placement_status": 1, "last_login_at": 1},
+    ).to_list(5000)
+
+    roadmap_rows = await db.roadmaps.find({}, {"_id": 0, "student_id": 1}).to_list(10000)
+    roadmap_counts: dict[str, int] = {}
+    for row in roadmap_rows:
+        sid = row.get("student_id")
+        if sid:
+            roadmap_counts[sid] = roadmap_counts.get(sid, 0) + 1
+
+    now = datetime.now(timezone.utc)
+    payload = []
+    for student in students:
+        student = _inject_profile_meta_fields(student)
+        student_id = str(student.get("id") or "")
+        last_login = _parse_iso_datetime(student.get("last_login_at"))
+        is_active = bool(last_login and (now - last_login) <= timedelta(hours=24))
+        payload.append(
+            {
+                "id": student_id,
+                "name": student.get("name"),
+                "email": student.get("email"),
+                "branch": student.get("branch"),
+                "readiness_score": int(student.get("readiness_score") or 0),
+                "progress_percentage": int(student.get("progress_percentage") or 0),
+                "active_roadmap": int(student.get("active_roadmap") or roadmap_counts.get(student_id, 0)),
+                "placement_status": student.get("placement_status", "not_placed"),
+                "is_active": is_active,
+            }
+        )
+    return payload
 
 @api_router.get("/tpo/dashboard/skill-gaps")
 async def get_skill_gaps(request: Request):
@@ -977,6 +1229,31 @@ async def create_company(input: CompanyCreate, request: Request):
     company_doc.pop("_id", None)  # Remove ObjectId before returning
     return company_doc
 
+@api_router.post("/tpo/companies/upload")
+async def upload_company_asset(request: Request, asset: UploadFile = File(...)):
+    user = await get_current_user(request)
+    if user["role"] != "tpo":
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    file_bytes = await asset.read()
+    if not file_bytes:
+        raise HTTPException(status_code=400, detail="Uploaded file is empty")
+
+    uploaded = _upload_bytes_to_supabase_storage(
+        SUPABASE_COMPANIES_FOLDER,
+        str(user.get("id") or "tpo"),
+        asset.filename or "company_asset",
+        asset.content_type or "application/octet-stream",
+        file_bytes,
+    )
+
+    return {
+        "file_name": asset.filename,
+        "content_type": asset.content_type,
+        "bucket_path": uploaded.get("path"),
+        "public_url": uploaded.get("public_url"),
+    }
+
 @api_router.get("/tpo/students")
 async def get_students(request: Request, branch: Optional[str] = None, min_readiness: Optional[int] = None):
     user = await get_current_user(request)
@@ -1010,12 +1287,12 @@ async def get_student_dashboard_stats(request: Request):
         return {"readiness_score": 78, "active_roadmap": 2, "progress_percentage": 45}
 
     student_data = await db.users.find_one({"email": user["email"]})
+    student_data = _inject_profile_meta_fields(student_data)
     readiness_score = student_data.get("readiness_score", 0)
     
     roadmaps = await db.roadmaps.count_documents({"student_id": user["id"]})
     
-    progress_doc = await db.student_progress.find_one({"student_email": user["email"]})
-    progress = progress_doc.get("progress_percentage", 0) if progress_doc else 0
+    progress = int(student_data.get("progress_percentage") or 0)
     
     return {
         "readiness_score": readiness_score,
@@ -1044,16 +1321,70 @@ async def update_student_profile(input: StudentProfileUpdateRequest, request: Re
     if db is None:
         raise HTTPException(status_code=503, detail="Database not connected")
 
-    about_text = input.about.strip()
-    await db.users.update_one({"email": user["email"]}, {"$set": {"about": about_text}})
+    db_user = await db.users.find_one({"email": user["email"]}, {"_id": 0, "weak_skills": 1})
+    if not db_user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    payload = input.model_dump(exclude_none=True)
+    updates = {}
+    meta_updates = {}
+    for key, value in payload.items():
+        if isinstance(value, str):
+            cleaned = value.strip()
+            updates[key] = cleaned
+            meta_updates[key] = cleaned
+        else:
+            updates[key] = value
+            meta_updates[key] = value
+
+    if not updates:
+        raise HTTPException(status_code=400, detail="No profile fields provided")
+
+    updates["weak_skills"] = _compose_weak_skills_with_meta(db_user.get("weak_skills"), meta_updates)
+    await db.users.update_one({"email": user["email"]}, {"$set": updates})
 
     updated_user = await db.users.find_one({"email": user["email"]}, {"_id": 0})
     if not updated_user:
         raise HTTPException(status_code=404, detail="User not found")
 
+    updated_user = _inject_profile_meta_fields(updated_user)
     updated_user["id"] = user["id"]
     updated_user.pop("password_hash", None)
     return updated_user
+
+@api_router.post("/student/progress-summary")
+async def sync_student_progress_summary(input: StudentProgressSummaryRequest, request: Request):
+    user = await get_current_user(request)
+    if user["role"] != "student":
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    if db is None:
+        raise HTTPException(status_code=503, detail="Database not connected")
+
+    db_user = await db.users.find_one({"email": user["email"]}, {"_id": 0, "weak_skills": 1})
+    if not db_user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    now_iso = datetime.now(timezone.utc).isoformat()
+    await db.users.update_one(
+        {"email": user["email"]},
+        {
+            "$set": {
+                "readiness_score": int(input.readiness_score),
+                "last_login_at": now_iso,
+                "weak_skills": _compose_weak_skills_with_meta(
+                    db_user.get("weak_skills"),
+                    {
+                        "progress_percentage": int(input.progress_percentage),
+                        "active_roadmap": int(input.active_roadmap),
+                        "last_login_at": now_iso,
+                    },
+                ),
+            }
+        },
+    )
+
+    return {"message": "Progress summary synced"}
 
 @api_router.post("/student/resume")
 async def update_student_resume(request: Request, resume: UploadFile = File(...)):
@@ -1064,7 +1395,7 @@ async def update_student_resume(request: Request, resume: UploadFile = File(...)
     if db is None:
         raise HTTPException(status_code=503, detail="Database not connected")
 
-    db_user = await db.users.find_one({"email": user["email"]}, {"id": 1, "resume_storage_name": 1})
+    db_user = await db.users.find_one({"email": user["email"]}, {"id": 1, "resume_storage_name": 1, "resume_bucket_path": 1, "weak_skills": 1})
     if not db_user:
         raise HTTPException(status_code=404, detail="User not found")
 
@@ -1078,12 +1409,24 @@ async def update_student_resume(request: Request, resume: UploadFile = File(...)
     resume_content_type = resume.content_type or "application/octet-stream"
 
     (UPLOADS_DIR / resume_storage_name).write_bytes(file_bytes)
+    uploaded = _upload_bytes_to_supabase_storage(
+        SUPABASE_RESUMES_FOLDER,
+        str(db_user["id"]),
+        resume_file_name,
+        resume_content_type,
+        file_bytes,
+    )
+    resume_bucket_path = uploaded.get("path")
+    resume_public_url = uploaded.get("public_url")
 
     old_storage_name = db_user.get("resume_storage_name")
     if old_storage_name:
         old_path = UPLOADS_DIR / old_storage_name
         if old_path.exists() and old_path.is_file():
             old_path.unlink(missing_ok=True)
+    old_bucket_path = db_user.get("resume_bucket_path")
+    if old_bucket_path and old_bucket_path != resume_bucket_path:
+        _remove_from_supabase_storage(old_bucket_path)
 
     extracted_text = _extract_text_from_resume(resume_file_name, file_bytes, resume_content_type)
     resume_insights = _nlp_resume_insights(extracted_text)
@@ -1094,13 +1437,27 @@ async def update_student_resume(request: Request, resume: UploadFile = File(...)
             "$set": {
                 "resume_file_name": resume_file_name,
                 "resume_storage_name": resume_storage_name,
+                "resume_bucket_path": resume_bucket_path,
+                "resume_public_url": resume_public_url,
                 "resume_content_type": resume_content_type,
                 "resume_insights": resume_insights,
+                "weak_skills": _compose_weak_skills_with_meta(
+                    db_user.get("weak_skills"),
+                    {
+                        "resume_file_name": resume_file_name,
+                        "resume_storage_name": resume_storage_name,
+                        "resume_bucket_path": resume_bucket_path,
+                        "resume_public_url": resume_public_url,
+                        "resume_content_type": resume_content_type,
+                        "resume_insights": resume_insights,
+                    },
+                ),
             }
         },
     )
 
     updated_user = await db.users.find_one({"id": db_user["id"]}, {"_id": 0})
+    updated_user = _inject_profile_meta_fields(updated_user)
     updated_user["id"] = user["id"]
     updated_user.pop("password_hash", None)
     return updated_user
@@ -1116,20 +1473,29 @@ async def download_student_resume(request: Request):
 
     db_user = await db.users.find_one(
         {"email": user["email"]},
-        {"resume_storage_name": 1, "resume_file_name": 1, "resume_content_type": 1},
+        {"resume_storage_name": 1, "resume_bucket_path": 1, "resume_file_name": 1, "resume_content_type": 1, "weak_skills": 1},
     )
-    if not db_user or not db_user.get("resume_storage_name"):
+    db_user = _inject_profile_meta_fields(db_user)
+    if not db_user or (not db_user.get("resume_storage_name") and not db_user.get("resume_bucket_path")):
         raise HTTPException(status_code=404, detail="Resume not found")
 
-    resume_path = UPLOADS_DIR / db_user["resume_storage_name"]
-    if not resume_path.exists():
+    storage_name = db_user.get("resume_storage_name")
+    resume_path = UPLOADS_DIR / storage_name if storage_name else None
+    if resume_path and resume_path.exists():
+        return FileResponse(
+            path=resume_path,
+            filename=db_user.get("resume_file_name") or "resume",
+            media_type=db_user.get("resume_content_type") or "application/octet-stream",
+        )
+
+    bucket_bytes = _download_bytes_from_supabase_storage(db_user.get("resume_bucket_path"))
+    if not bucket_bytes:
         raise HTTPException(status_code=404, detail="Resume file is unavailable")
 
-    return FileResponse(
-        path=resume_path,
-        filename=db_user.get("resume_file_name") or "resume",
-        media_type=db_user.get("resume_content_type") or "application/octet-stream",
-    )
+    headers = {
+        "Content-Disposition": f"attachment; filename=\"{db_user.get('resume_file_name') or 'resume'}\""
+    }
+    return Response(content=bucket_bytes, media_type=db_user.get("resume_content_type") or "application/octet-stream", headers=headers)
 
 class RoadmapCreate(BaseModel):
     company_id: str
@@ -2219,6 +2585,9 @@ async def startup_db():
         {"id": "comp2", "company_name": "Microsoft", "role": "Software Engineer", "date": "2026-02-20", "eligibility": "CGPA >= 7.0", "status": "active", "package": "22 LPA"},
         {"id": "comp3", "company_name": "Amazon", "role": "SDE-1", "date": "2026-03-01", "eligibility": "All branches", "status": "active", "package": "20 LPA"},
         {"id": "comp4", "company_name": "Flipkart", "role": "Backend Developer", "date": "2026-03-10", "eligibility": "CS/IT only", "status": "upcoming", "package": "18 LPA"},
+        {"id": "comp5", "company_name": "ESDS", "role": "Windows Server Administrator", "date": "2026-07-20", "eligibility": "BCA / BSc IT / CS / E&TC, CGPA >= 6.0", "status": "upcoming", "package": "5.5 LPA"},
+        {"id": "comp6", "company_name": "Aarti Pharmalabs", "role": "Graduate Engineer Trainee (GET) - Projects", "date": "2026-07-25", "eligibility": "Chemical / Mechanical / Instrumentation, CGPA >= 6.5", "status": "upcoming", "package": "6.0 LPA"},
+        {"id": "neilsoft-get-civil", "company_name": "Neilsoft Ltd.", "role": "Graduate Engineer Trainee (GET)", "date": "2026-08-10", "eligibility": "Civil/Mechanical/Chemical (Pune/Mumbai), BE/ME", "status": "upcoming", "package": "5.0 LPA"},
     ]
     for company in companies_data:
         exists = await db.companies.find_one({"id": company["id"]})

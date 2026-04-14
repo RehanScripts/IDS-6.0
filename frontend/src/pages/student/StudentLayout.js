@@ -1,9 +1,9 @@
-import React, { useState, useRef } from 'react';
+import React, { useRef, useState } from 'react';
 import { Outlet, NavLink, useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import {
   LayoutDashboard, Building2, Map, TrendingUp, User, LogOut, ChevronDown,
-  GraduationCap, Target, Brain, BarChart3, Compass, BookOpen, HelpCircle,
+  GraduationCap, Target, Brain, BarChart3, Compass, BookOpen, HelpCircle, Video,
 } from 'lucide-react';
 import MockInterviewMascot from '../../components/MockInterviewMascot';
 import '../LandingPage.css';
@@ -13,6 +13,7 @@ const sidebarItems = [
   { path: '/student/companies', label: 'Companies', icon: Building2 },
   { path: '/student/assessment', label: 'Assessment', icon: Target },
   { path: '/student/roadmaps', label: 'My Roadmaps', icon: Map },
+  { path: '/student/ai-interview', label: 'AI Interview', icon: Video },
   { path: '/student/progress', label: 'Progress', icon: TrendingUp },
   { path: '/student/profile', label: 'Profile', icon: User },
 ];
@@ -65,10 +66,10 @@ export default function StudentLayout() {
   ];
 
   return (
-    <div className="sankalp-landing" style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
+    <div className="sankalp-landing student-layout-root" style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
       {/* ═══ HEADER — Same as Landing ═══ */}
-      <header className="sk-header">
-        <div className="sk-header-inner">
+      <header className="sk-header student-top-header">
+        <div className="sk-header-inner student-header-inner">
           <Link to="/" className="sk-logo">
             <div className="sk-logo-icon"><GraduationCap size={22} color="#fff" /></div>
             <div className="sk-logo-text">
@@ -129,9 +130,9 @@ export default function StudentLayout() {
       </header>
 
       {/* ═══ BODY ═══ */}
-      <div style={{ display: 'flex', flex: 1 }}>
+      <div className="student-body-shell" style={{ display: 'flex', flex: 1 }}>
         {/* Sidebar */}
-        <aside className="sk-sidebar">
+        <aside className="sk-sidebar student-sidebar-core">
           <nav style={{ padding: '1.5rem 1rem', display: 'flex', flexDirection: 'column', gap: '4px' }}>
             {sidebarItems.map((item) => {
               const Icon = item.icon;
@@ -166,7 +167,7 @@ export default function StudentLayout() {
         </aside>
 
         {/* Main Content */}
-        <main style={{ flex: 1, minHeight: '100%', background: 'var(--sk-cream)' }}>
+        <main className="student-main-content" style={{ flex: 1, minHeight: '100%', background: 'var(--sk-cream)' }}>
           <Outlet />
           <footer style={{ padding: '1.5rem 2rem', borderTop: '1px dashed var(--sk-ink-muted)', textAlign: 'center', fontSize: '0.78rem', color: 'var(--sk-ink-muted)' }}>
             Sankalp Student Portal — Build your roadmap. Track progress. Crack placements.

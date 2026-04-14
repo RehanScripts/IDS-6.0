@@ -15,8 +15,11 @@ create table if not exists profiles (
   weak_skills jsonb,
   resume_file_name text,
   resume_storage_name text,
+  resume_bucket_path text,
+  resume_public_url text,
   resume_content_type text,
   resume_insights jsonb,
+  last_login_at timestamptz,
   created_at timestamptz default now()
 );
 

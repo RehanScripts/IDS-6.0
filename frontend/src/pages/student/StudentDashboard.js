@@ -20,8 +20,8 @@ const INDUSTRY_TAGS = {
   Infrastructure: 'Infrastructure and Construction'
 };
 
-const FLAGSHIP_COMPANY_IDS = ['klingelnberg', 'seiton', 'hal-ozar', 'mahindra-nashik', 'siemens', 'bosch', 'abb', 'jindal-saw', 'pfizer', 'capgemini', 'infosys'];
-const MANDATORY_AD_IDS = ['klingelnberg', 'seiton'];
+const FLAGSHIP_COMPANY_IDS = ['aarti-pharmalabs-get', 'esds-windows-admin', 'klingelnberg', 'seiton', 'hal-ozar', 'mahindra-nashik', 'siemens', 'bosch', 'abb', 'jindal-saw', 'pfizer', 'capgemini', 'infosys'];
+const MANDATORY_AD_IDS = ['aarti-pharmalabs-get', 'esds-windows-admin', 'klingelnberg', 'seiton'];
 
 function shuffleList(items) { return [...items].sort(() => Math.random() - 0.5); }
 
@@ -41,7 +41,7 @@ export default function StudentDashboard() {
   const [slideDirection, setSlideDirection] = useState('next');
   const [jdCompany, setJdCompany] = useState(null);
 
-  const openCompanyRoadmapFlow = (companyId) => navigate(`/student/companies?company=${companyId}&generate=1`);
+  const openCompanyRoadmapFlow = (companyId) => navigate(`/student/assessment?company=${companyId}`);
   const nearestDaysLeft = roadmaps.length ? Math.min(...roadmaps.map((r) => r.daysRemaining)) : 0;
   const openCompanyJD = (company) => { if (company?.jdDataUrl) { window.open(company.jdDataUrl, '_blank', 'noopener,noreferrer'); return; } setJdCompany(company); };
 
@@ -123,7 +123,7 @@ export default function StudentDashboard() {
             marginBottom: '2rem', background: 'var(--sk-cream-light)', minHeight: '260px',
           }}>
             <img
-              src={(INDUSTRY_SLIDES[highlighted.industry] || INDUSTRY_SLIDES.Engineering).image}
+              src={highlighted.coverImage || (INDUSTRY_SLIDES[highlighted.industry] || INDUSTRY_SLIDES.Engineering).image}
               alt={`${highlighted.company_name} banner`}
               style={{
                 position: 'absolute', top: 0, left: 0, width: '50%', height: '100%',
@@ -192,7 +192,7 @@ export default function StudentDashboard() {
               className="sk-service-card" style={{ backgroundColor: 'var(--sk-cream-light)', padding: 0, overflow: 'hidden' }}>
               <div style={{ height: 140, position: 'relative', background: '#E8F0E3', overflow: 'hidden' }}>
                 <img
-                  src={(INDUSTRY_SLIDES[company.industry] || INDUSTRY_SLIDES.Engineering).image}
+                  src={company.coverImage || (INDUSTRY_SLIDES[company.industry] || INDUSTRY_SLIDES.Engineering).image}
                   alt={`${company.company_name}`}
                   style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', transition: 'transform 0.4s ease' }}
                   onMouseOver={(e) => e.currentTarget.style.transform = 'scale(1.05)'}

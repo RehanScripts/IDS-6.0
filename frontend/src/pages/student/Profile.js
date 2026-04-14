@@ -5,8 +5,8 @@ import { User, Mail, GraduationCap, Calendar, FileText, School, Sparkles, Link2,
 function Field({ icon: Icon, label, value }) {
   return (
     <div className="flex items-start gap-3">
-      <div className="w-9 h-9 bg-blue-50 rounded-lg flex items-center justify-center flex-shrink-0">
-        <Icon className="w-4 h-4 text-blue-600" />
+      <div className="w-9 h-9 bg-emerald-50 rounded-lg flex items-center justify-center flex-shrink-0">
+        <Icon className="w-4 h-4 text-emerald-600" />
       </div>
       <div>
         <p className="text-[10px] uppercase tracking-wider font-semibold text-slate-400">{label}</p>
@@ -17,7 +17,11 @@ function Field({ icon: Icon, label, value }) {
 }
 
 export default function Profile() {
-  const { user, updateProfileAbout, updateProfileResume, apiBaseUrl } = useAuth();
+  const { user, updateProfileAbout, updateProfileDetails, updateProfileResume, apiBaseUrl } = useAuth();
+  const [profileDraft, setProfileDraft] = useState({ name: '', college_name: '', branch: '', year: '' });
+  const [isEditingProfile, setIsEditingProfile] = useState(false);
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
+  const [profileStatus, setProfileStatus] = useState('');
   const [aboutDraft, setAboutDraft] = useState('');
   const [isEditingAbout, setIsEditingAbout] = useState(false);
   const [isSavingAbout, setIsSavingAbout] = useState(false);
@@ -30,6 +34,37 @@ export default function Profile() {
   useEffect(() => {
     setAboutDraft(user?.about || '');
   }, [user?.about]);
+
+  useEffect(() => {
+    setProfileDraft({
+      name: user?.name || '',
+      college_name: user?.college_name || '',
+      branch: user?.branch || '',
+      year: user?.year || '',
+    });
+  }, [user?.name, user?.college_name, user?.branch, user?.year]);
+
+  const handleProfileSave = async () => {
+    const payload = {
+      name: profileDraft.name.trim(),
+      college_name: profileDraft.college_name.trim(),
+      branch: profileDraft.branch.trim(),
+      year: profileDraft.year.trim(),
+    };
+
+    setIsSavingProfile(true);
+    setProfileStatus('');
+    const result = await updateProfileDetails(payload);
+    setIsSavingProfile(false);
+
+    if (!result.success) {
+      setProfileStatus(result.error || 'Failed to update profile details.');
+      return;
+    }
+
+    setIsEditingProfile(false);
+    setProfileStatus('Profile details updated successfully.');
+  };
 
   const handleAboutSave = async () => {
     const trimmed = aboutDraft.trim();
@@ -106,23 +141,107 @@ export default function Profile() {
   }
 
   return (
-    <div className="p-6 md:p-8 max-w-5xl mx-auto" data-testid="profile-page">
+    <div className="p-6 md:p-8 max-w-5xl mx-auto bg-emerald-50/40 min-h-screen" data-testid="profile-page">
       <div className="mb-8">
         <h1 className="text-4xl font-semibold text-slate-900 tracking-tight" style={{ fontFamily: 'Outfit' }}>Profile</h1>
         <p className="text-slate-500 mt-2">All information shared during signup appears here.</p>
       </div>
 
-      <div className="bg-white border border-slate-200 rounded-xl p-8 shadow-sm mb-6">
+      <div className="bg-white border border-emerald-200 rounded-xl p-8 shadow-sm mb-6">
         <div className="flex flex-col md:flex-row items-start md:items-center gap-6 mb-6 pb-6 border-b border-slate-200">
-          <div className="w-20 h-20 bg-blue-600 rounded-full flex items-center justify-center text-white text-3xl font-semibold flex-shrink-0">
+          <div className="w-20 h-20 bg-emerald-600 rounded-full flex items-center justify-center text-white text-3xl font-semibold flex-shrink-0">
             {(user.name || 'S')[0].toUpperCase()}
           </div>
           <div className="flex-1">
             <h2 className="text-2xl font-semibold text-slate-900" style={{ fontFamily: 'Outfit' }}>{user.name || 'Student'}</h2>
-            <p className="text-blue-600 font-medium mt-1">{user.role === 'student' ? 'Student Profile' : 'TPO Profile'}</p>
+            <p className="text-emerald-600 font-medium mt-1">{user.role === 'student' ? 'Student Profile' : 'TPO Profile'}</p>
             <p className="text-slate-500 text-sm mt-1">{user.college_name || 'College name not provided'}</p>
           </div>
+          <div className="w-full md:w-auto">
+            {!isEditingProfile ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setIsEditingProfile(true);
+                  setProfileStatus('');
+                }}
+                className="inline-flex items-center px-3 py-1.5 rounded-lg border border-emerald-200 text-emerald-700 text-xs font-medium hover:bg-emerald-50 transition-colors"
+              >
+                Edit Details
+              </button>
+            ) : null}
+          </div>
         </div>
+
+        {isEditingProfile ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6 pb-6 border-b border-slate-200">
+            <label className="text-sm text-slate-700">
+              Name
+              <input
+                type="text"
+                value={profileDraft.name}
+                onChange={(event) => setProfileDraft((prev) => ({ ...prev, name: event.target.value }))}
+                className="mt-1 w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-600"
+              />
+            </label>
+            <label className="text-sm text-slate-700">
+              College Name
+              <input
+                type="text"
+                value={profileDraft.college_name}
+                onChange={(event) => setProfileDraft((prev) => ({ ...prev, college_name: event.target.value }))}
+                className="mt-1 w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-600"
+              />
+            </label>
+            <label className="text-sm text-slate-700">
+              Branch
+              <input
+                type="text"
+                value={profileDraft.branch}
+                onChange={(event) => setProfileDraft((prev) => ({ ...prev, branch: event.target.value }))}
+                className="mt-1 w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-600"
+              />
+            </label>
+            <label className="text-sm text-slate-700">
+              Year
+              <input
+                type="text"
+                value={profileDraft.year}
+                onChange={(event) => setProfileDraft((prev) => ({ ...prev, year: event.target.value }))}
+                className="mt-1 w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-600"
+              />
+            </label>
+
+            <div className="sm:col-span-2 flex items-center gap-2">
+              <button
+                type="button"
+                onClick={handleProfileSave}
+                disabled={isSavingProfile}
+                className="inline-flex items-center px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-xs font-medium hover:bg-emerald-700 disabled:opacity-70 transition-colors"
+              >
+                {isSavingProfile ? 'Saving...' : 'Save Details'}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsEditingProfile(false);
+                  setProfileDraft({
+                    name: user?.name || '',
+                    college_name: user?.college_name || '',
+                    branch: user?.branch || '',
+                    year: user?.year || '',
+                  });
+                  setProfileStatus('');
+                }}
+                className="inline-flex items-center px-3 py-1.5 rounded-lg border border-slate-200 text-slate-700 text-xs font-medium hover:bg-slate-50 transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        ) : null}
+
+        {profileStatus ? <p className="mb-4 text-xs text-slate-500">{profileStatus}</p> : null}
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-y-5 gap-x-8">
           <Field icon={User} label="User Name" value={user.name} />
@@ -131,8 +250,8 @@ export default function Profile() {
           <Field icon={GraduationCap} label="Branch" value={user.branch} />
           <Field icon={Calendar} label="Year" value={user.year} />
           <div className="flex items-start gap-3">
-            <div className="w-9 h-9 bg-blue-50 rounded-lg flex items-center justify-center flex-shrink-0">
-              <FileText className="w-4 h-4 text-blue-600" />
+            <div className="w-9 h-9 bg-emerald-50 rounded-lg flex items-center justify-center flex-shrink-0">
+              <FileText className="w-4 h-4 text-emerald-600" />
             </div>
             <div>
               <p className="text-[10px] uppercase tracking-wider font-semibold text-slate-400">Resume File</p>
@@ -140,11 +259,12 @@ export default function Profile() {
               <button
                 type="button"
                 onClick={handleViewResume}
-                className="mt-2 inline-flex items-center px-3 py-1.5 rounded-lg bg-blue-600 text-white text-xs font-medium hover:bg-blue-700 transition-colors"
+                disabled={!user.resume_storage_name}
+                className="mt-2 inline-flex items-center px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-xs font-medium hover:bg-emerald-700 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
               >
                 View Resume
               </button>
-              <label className="mt-2 ml-2 inline-flex items-center px-3 py-1.5 rounded-lg border border-blue-200 text-blue-700 text-xs font-medium hover:bg-blue-50 transition-colors cursor-pointer">
+              <label className="mt-2 ml-2 inline-flex items-center px-3 py-1.5 rounded-lg border border-emerald-200 text-emerald-700 text-xs font-medium hover:bg-emerald-50 transition-colors cursor-pointer">
                 {isUploadingResume ? 'Uploading...' : 'Re-upload Resume'}
                 <input
                   type="file"
@@ -161,7 +281,7 @@ export default function Profile() {
         </div>
       </div>
 
-      <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm mb-6">
+      <div className="bg-white border border-emerald-200 rounded-xl p-6 shadow-sm mb-6">
         <div className="flex items-center justify-between gap-3 mb-3">
           <h3 className="text-lg font-semibold text-slate-900" style={{ fontFamily: 'Outfit' }}>About</h3>
           {!isEditingAbout ? (
@@ -171,7 +291,7 @@ export default function Profile() {
                 setIsEditingAbout(true);
                 setAboutStatus('');
               }}
-              className="inline-flex items-center px-3 py-1.5 rounded-lg border border-blue-200 text-blue-700 text-xs font-medium hover:bg-blue-50 transition-colors"
+              className="inline-flex items-center px-3 py-1.5 rounded-lg border border-emerald-200 text-emerald-700 text-xs font-medium hover:bg-emerald-50 transition-colors"
             >
               Edit
             </button>
@@ -186,7 +306,7 @@ export default function Profile() {
               value={aboutDraft}
               onChange={(event) => setAboutDraft(event.target.value)}
               rows={4}
-              className="w-full px-4 py-2.5 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent transition-all"
+              className="w-full px-4 py-2.5 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-600 focus:border-transparent transition-all"
               placeholder="Tell us about yourself"
             />
             <div className="flex items-center gap-2">
@@ -194,7 +314,7 @@ export default function Profile() {
                 type="button"
                 onClick={handleAboutSave}
                 disabled={isSavingAbout}
-                className="inline-flex items-center px-3 py-1.5 rounded-lg bg-blue-600 text-white text-xs font-medium hover:bg-blue-700 disabled:opacity-70 transition-colors"
+                className="inline-flex items-center px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-xs font-medium hover:bg-emerald-700 disabled:opacity-70 transition-colors"
               >
                 {isSavingAbout ? 'Saving...' : 'Save'}
               </button>
@@ -216,9 +336,9 @@ export default function Profile() {
         {aboutStatus ? <p className="mt-3 text-xs text-slate-500">{aboutStatus}</p> : null}
       </div>
 
-      <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm mb-6">
+      <div className="bg-white border border-emerald-200 rounded-xl p-6 shadow-sm mb-6">
         <h3 className="text-lg font-semibold text-slate-900 mb-3 flex items-center gap-2" style={{ fontFamily: 'Outfit' }}>
-          <Sparkles className="w-5 h-5 text-blue-600" /> Resume Insights (OCR + NLP)
+          <Sparkles className="w-5 h-5 text-emerald-600" /> Resume Insights (OCR + NLP)
         </h3>
 
         <div className="grid md:grid-cols-2 gap-6">
@@ -226,7 +346,7 @@ export default function Profile() {
             <h4 className="text-sm font-semibold text-slate-700 mb-2">Detected Skills</h4>
             <div className="flex flex-wrap gap-2">
               {(insights.skills || []).length > 0 ? (insights.skills || []).map((skill) => (
-                <span key={skill} className="px-2.5 py-1 rounded-full text-xs bg-blue-50 text-blue-700 border border-blue-100">{skill}</span>
+                <span key={skill} className="px-2.5 py-1 rounded-full text-xs bg-emerald-50 text-emerald-700 border border-emerald-100">{skill}</span>
               )) : <span className="text-sm text-slate-500">No skills detected from resume.</span>}
             </div>
           </div>

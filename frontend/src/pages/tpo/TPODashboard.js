@@ -2,9 +2,10 @@ import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 import { Users, Building2, TrendingUp, Award, Sparkles } from 'lucide-react';
 import { BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, LineChart, Line } from 'recharts';
+import { useAuth } from '../../contexts/AuthContext';
 import '../LandingPage.css';
 
-const MOCK_STATS = { total_students: 420, upcoming_companies: 12, avg_readiness_score: 68, placement_status: '186/420' };
+const MOCK_STATS = { total_students: 420, upcoming_companies: 12, avg_readiness_score: 68, placement_status: '186/420', total_users: 421, active_users: 278 };
 const MOCK_SKILL_GAPS = [
   { skill: 'Aptitude', count: 146 }, { skill: 'English', count: 132 },
   { skill: 'Interview', count: 121 }, { skill: 'Technical', count: 109 }, { skill: 'Resume', count: 98 }
@@ -34,6 +35,7 @@ const BAR_COLOR = '#2D6A4F';
 const LINE_COLORS = ['#2D6A4F', '#F4A261'];
 
 export default function TPODashboard() {
+  const { getAuthToken } = useAuth();
   const [stats, setStats] = useState(null);
   const [skillGaps, setSkillGaps] = useState([]);
   const [readiness, setReadiness] = useState([]);
@@ -45,11 +47,18 @@ export default function TPODashboard() {
   useEffect(() => {
     const fetchData = async () => {
       try {
+        const authToken = getAuthToken?.();
+        const requestConfig = {
+          withCredentials: true,
+          headers: {
+            ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
+          },
+        };
         const [statsRes, skillGapsRes, readinessRes, userProgressRes] = await Promise.all([
-          axios.get(`${process.env.REACT_APP_BACKEND_URL}/api/tpo/dashboard/stats`, { withCredentials: true }),
-          axios.get(`${process.env.REACT_APP_BACKEND_URL}/api/tpo/dashboard/skill-gaps`, { withCredentials: true }),
-          axios.get(`${process.env.REACT_APP_BACKEND_URL}/api/tpo/dashboard/readiness`, { withCredentials: true }),
-          axios.get(`${process.env.REACT_APP_BACKEND_URL}/api/tpo/dashboard/user-progress`, { withCredentials: true }),
+          axios.get(`${process.env.REACT_APP_BACKEND_URL}/api/tpo/dashboard/stats`, requestConfig),
+          axios.get(`${process.env.REACT_APP_BACKEND_URL}/api/tpo/dashboard/skill-gaps`, requestConfig),
+          axios.get(`${process.env.REACT_APP_BACKEND_URL}/api/tpo/dashboard/readiness`, requestConfig),
+          axios.get(`${process.env.REACT_APP_BACKEND_URL}/api/tpo/dashboard/user-progress`, requestConfig),
         ]);
         setStats(statsRes.data); setSkillGaps(skillGapsRes.data); setReadiness(readinessRes.data);
         setUserProgress(Array.isArray(userProgressRes.data) ? userProgressRes.data : []);
@@ -61,7 +70,7 @@ export default function TPODashboard() {
       }
     };
     fetchData();
-  }, []);
+  }, [getAuthToken]);
 
   if (loading) {
     return (

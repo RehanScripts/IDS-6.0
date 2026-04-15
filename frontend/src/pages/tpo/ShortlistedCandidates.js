@@ -3,9 +3,9 @@ import { UserCheck } from 'lucide-react';
 
 export default function ShortlistedCandidates() {
   const mockShortlisted = [
-    { name: 'Rahul Sharma', company: 'Google', role: 'SDE', status: 'Interview Scheduled' },
-    { name: 'Priya Singh', company: 'Microsoft', role: 'Software Engineer', status: 'Offer Received' },
-    { name: 'Amit Kumar', company: 'Amazon', role: 'SDE-1', status: 'Final Round' },
+    { name: 'Rahul Sharma', company: 'Sahyadri Farms', role: 'Software Engineer', status: 'Interview Scheduled' },
+    { name: 'Priya Singh', company: 'Aress Software', role: 'Software Engineer', status: 'Offer Received' },
+    { name: 'Amit Kumar', company: 'ESDS', role: 'Software Engineer', status: 'Final Round' },
   ];
 
   return (

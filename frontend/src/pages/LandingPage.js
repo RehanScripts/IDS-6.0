@@ -578,6 +578,10 @@ export default function LandingPage() {
                 <div className="sk-about-contact">
                   <div className="sk-contact-item">
                     <Mail size={18} />
+                    <a href="mailto:rrpinjari370124@kkwagh.edu.in">rrpinjari370124@kkwagh.edu.in</a>
+                  </div>
+                  <div className="sk-contact-item">
+                    <Mail size={18} />
                     <a href="mailto:aasuryavanshi370724@kkwagh.edu.in">aasuryavanshi370724@kkwagh.edu.in</a>
                   </div>
                   <div className="sk-contact-item">
@@ -670,6 +674,7 @@ export default function LandingPage() {
             <div className="sk-footer-col">
               <h4 className="sk-footer-heading">Contact</h4>
               <ul className="sk-footer-links">
+                <li><a href="mailto:rrpinjari370124@kkwagh.edu.in">rrpinjari370124@kkwagh.edu.in</a></li>
                 <li><a href="mailto:aasuryavanshi370724@kkwagh.edu.in">aasuryavanshi370724@kkwagh.edu.in</a></li>
                 <li>K.K. Wagh Institute</li>
                 <li>Nashik, Maharashtra, India</li>
